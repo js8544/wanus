@@ -6,8 +6,7 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MarkdownRenderer } from "@/components/ui/markdown"
-import { ArrowLeft, ChevronDown, Clock, Code, ExternalLink, Eye, Globe, Image, Maximize2, RefreshCw, Search, Send, Sparkles, X } from "lucide-react"
-import Link from "next/link"
+import { ChevronDown, ChevronRight, Clock, Code, ExternalLink, Eye, Globe, Image, Maximize2, Search, Send, Sparkles, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 type MessageType = {
@@ -19,6 +18,7 @@ type MessageType = {
   toolResultId?: string
   toolCallId?: string
   artifactId?: string
+  thinkingContent?: string
 }
 
 type ToolResult = {
@@ -49,6 +49,7 @@ export default function AgentPage() {
   const [artifactViewMode, setArtifactViewMode] = useState<'view' | 'code'>('view')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [streamingArtifact, setStreamingArtifact] = useState<ArtifactItem | null>(null)
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set())
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
@@ -160,6 +161,19 @@ export default function AgentPage() {
     })
   }
 
+  // Function to toggle thinking block expansion
+  const toggleThinking = (messageId: string) => {
+    setExpandedThinking(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId)
+      } else {
+        newSet.add(messageId)
+      }
+      return newSet
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
@@ -253,9 +267,33 @@ export default function AgentPage() {
                 const artifactStartMatch = currentTextBuffer.match(/```artifact\n/)
                 const artifactEndMatch = currentTextBuffer.match(/```artifact\n([\s\S]*?)\n```/)
 
+                // Check for thinking blocks (complete or streaming) BEFORE updating messages
+                const thinkingStartMatch = currentTextBuffer.match(/```think\n/)
+                const thinkingEndMatch = currentTextBuffer.match(/```think\n([\s\S]*?)\n```/)
+
                 let messageContent = currentTextBuffer // Default to showing full content
                 let artifactIdForMessage: string | undefined = undefined
+                let thinkingContentForMessage: string | undefined = undefined
 
+                // Process thinking blocks
+                if (thinkingStartMatch) {
+                  if (thinkingEndMatch) {
+                    // Complete thinking block
+                    const thinkingContent = thinkingEndMatch[1]
+                    console.log("🧠 Frontend: Complete thinking block detected", { contentLength: thinkingContent.length })
+
+                    thinkingContentForMessage = thinkingContent.trim()
+                    // Replace thinking block with placeholder in message content
+                    messageContent = currentTextBuffer.replace(/```think\n[\s\S]*?\n```/, '')
+                  } else {
+                    // Streaming thinking block (partial) - keep it hidden until complete
+                    console.log("🧠 Frontend: Streaming thinking block detected")
+                    // Replace with empty for now, will be processed when complete
+                    messageContent = currentTextBuffer.replace(/```think\n[\s\S]*$/, '')
+                  }
+                }
+
+                // Process artifacts (existing logic)
                 if (artifactStartMatch) {
                   // Use existing streaming artifact ID or create new one
                   const artifactId = streamingArtifact?.id || `artifact-${Date.now()}`
@@ -286,7 +324,7 @@ export default function AgentPage() {
                     setArtifactViewMode('view') // Switch to view for complete artifacts
 
                     // Replace artifact with placeholder in message content
-                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
+                    messageContent = messageContent.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
                   } else {
                     // Streaming artifact (partial)
                     const partialContent = currentTextBuffer.split('```artifact\n')[1] || ''
@@ -312,7 +350,7 @@ export default function AgentPage() {
                     }
 
                     // Replace with placeholder in message content
-                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*$/, '[Artifact streaming - view in right panel]')
+                    messageContent = messageContent.replace(/```artifact\n[\s\S]*$/, '[Artifact streaming - view in right panel]')
                   }
                 }
 
@@ -320,7 +358,8 @@ export default function AgentPage() {
                   currentTextBuffer: currentTextBuffer.substring(0, 100) + (currentTextBuffer.length > 100 ? "..." : ""),
                   messageContent: messageContent.substring(0, 100) + (messageContent.length > 100 ? "..." : ""),
                   length: currentTextBuffer.length,
-                  currentAssistantMessageExists: !!currentAssistantMessage
+                  currentAssistantMessageExists: !!currentAssistantMessage,
+                  hasThinking: !!thinkingContentForMessage
                 })
 
                 // Update or create assistant message with the processed content
@@ -341,17 +380,19 @@ export default function AgentPage() {
                     console.log("✅ Frontend: Updating existing message at index", existingIndex)
                     newMessages[existingIndex] = {
                       ...newMessages[existingIndex],
-                      content: messageContent, // Use processed content
-                      artifactId: artifactIdForMessage // Store artifact ID in the message
+                      content: messageContent.trim(), // Use processed content
+                      artifactId: artifactIdForMessage, // Store artifact ID in the message
+                      thinkingContent: thinkingContentForMessage // Store thinking content in the message
                     }
                   } else {
                     // Create new assistant message
                     console.log("➕ Frontend: Creating new assistant message")
                     const newAssistantMessage = {
                       role: 'assistant' as const,
-                      content: messageContent, // Use processed content
+                      content: messageContent.trim(), // Use processed content
                       id: currentMessageId || `assistant-${Date.now()}-${Math.random()}`,
-                      artifactId: artifactIdForMessage // Store artifact ID in the message
+                      artifactId: artifactIdForMessage, // Store artifact ID in the message
+                      thinkingContent: thinkingContentForMessage // Store thinking content in the message
                     }
                     newMessages.push(newAssistantMessage)
                     currentAssistantMessage = newAssistantMessage
@@ -382,9 +423,33 @@ export default function AgentPage() {
                 const artifactStartMatch = currentTextBuffer.match(/```artifact\n/)
                 const artifactEndMatch = currentTextBuffer.match(/```artifact\n([\s\S]*?)\n```/)
 
+                // Check for thinking blocks in raw text too
+                const thinkingStartMatch = currentTextBuffer.match(/```think\n/)
+                const thinkingEndMatch = currentTextBuffer.match(/```think\n([\s\S]*?)\n```/)
+
                 let messageContent = currentTextBuffer // Default to showing full content
                 let artifactIdForMessage: string | undefined = undefined
+                let thinkingContentForMessage: string | undefined = undefined
 
+                // Process thinking blocks
+                if (thinkingStartMatch) {
+                  if (thinkingEndMatch) {
+                    // Complete thinking block
+                    const thinkingContent = thinkingEndMatch[1]
+                    console.log("🧠 Frontend: Complete thinking block in raw text", { contentLength: thinkingContent.length })
+
+                    thinkingContentForMessage = thinkingContent.trim()
+                    // Replace thinking block with placeholder in message content
+                    messageContent = currentTextBuffer.replace(/```think\n[\s\S]*?\n```/, '')
+                  } else {
+                    // Streaming thinking block (partial) - keep it hidden until complete
+                    console.log("🧠 Frontend: Streaming thinking block in raw text")
+                    // Replace with empty for now, will be processed when complete
+                    messageContent = currentTextBuffer.replace(/```think\n[\s\S]*$/, '')
+                  }
+                }
+
+                // Process artifacts
                 if (artifactStartMatch) {
                   // Use existing streaming artifact ID or create new one
                   const artifactId = streamingArtifact?.id || `artifact-${Date.now()}`
@@ -415,7 +480,7 @@ export default function AgentPage() {
                     setArtifactViewMode('view')
 
                     // Replace artifact with placeholder in message content
-                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
+                    messageContent = messageContent.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
                   } else {
                     // Streaming artifact (partial)
                     const partialContent = currentTextBuffer.split('```artifact\n')[1] || ''
@@ -436,7 +501,7 @@ export default function AgentPage() {
                     }
 
                     // Replace with placeholder in message content
-                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*$/, '[Artifact streaming - view in right panel]')
+                    messageContent = messageContent.replace(/```artifact\n[\s\S]*$/, '[Artifact streaming - view in right panel]')
                   }
                 }
 
@@ -448,15 +513,17 @@ export default function AgentPage() {
                   if (existingIndex !== -1) {
                     newMessages[existingIndex] = {
                       ...newMessages[existingIndex],
-                      content: messageContent,
-                      artifactId: artifactIdForMessage
+                      content: messageContent.trim(),
+                      artifactId: artifactIdForMessage,
+                      thinkingContent: thinkingContentForMessage
                     }
                   } else {
                     const newAssistantMessage = {
                       role: 'assistant' as const,
-                      content: messageContent,
+                      content: messageContent.trim(),
                       id: currentMessageId,
-                      artifactId: artifactIdForMessage
+                      artifactId: artifactIdForMessage,
+                      thinkingContent: thinkingContentForMessage
                     }
                     newMessages.push(newAssistantMessage)
                     currentAssistantMessage = newAssistantMessage
@@ -624,11 +691,24 @@ export default function AgentPage() {
                   setMessages(prev => {
                     const newMessages = [...prev]
 
-                    // Process the final text buffer to handle artifacts
+                    // Process the final text buffer to handle artifacts and thinking blocks
                     let finalMessageContent = currentTextBuffer
                     let finalArtifactId: string | undefined = undefined
-                    const artifactMatch = currentTextBuffer.match(/```artifact\n([\s\S]*?)\n```/)
+                    let finalThinkingContent: string | undefined = undefined
 
+                    // Process thinking blocks
+                    const thinkingMatch = currentTextBuffer.match(/```think\n([\s\S]*?)\n```/)
+                    if (thinkingMatch) {
+                      const thinkingContent = thinkingMatch[1]
+                      console.log("🧠 Frontend: Thinking block detected in final message", { contentLength: thinkingContent.length })
+
+                      finalThinkingContent = thinkingContent.trim()
+                      // Remove thinking block from final message content
+                      finalMessageContent = currentTextBuffer.replace(/```think\n[\s\S]*?\n```/, '')
+                    }
+
+                    // Process artifacts
+                    const artifactMatch = finalMessageContent.match(/```artifact\n([\s\S]*?)\n```/)
                     if (artifactMatch) {
                       const htmlContent = artifactMatch[1]
                       console.log("🎭 Frontend: HTML artifact detected in final message", { contentLength: htmlContent.length })
@@ -649,7 +729,7 @@ export default function AgentPage() {
                       setArtifactViewMode('view')
 
                       // Replace artifact with placeholder in final message
-                      finalMessageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
+                      finalMessageContent = finalMessageContent.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
                     }
 
                     if (currentAssistantMessage) {
@@ -658,16 +738,18 @@ export default function AgentPage() {
                       if (index !== -1) {
                         newMessages[index] = {
                           ...currentAssistantMessage,
-                          content: finalMessageContent,
-                          artifactId: finalArtifactId
+                          content: finalMessageContent.trim(),
+                          artifactId: finalArtifactId,
+                          thinkingContent: finalThinkingContent
                         }
                       }
                     } else {
                       // Create final assistant message if none exists with processed content
                       currentAssistantMessage = {
                         role: 'assistant',
-                        content: finalMessageContent,
-                        artifactId: finalArtifactId
+                        content: finalMessageContent.trim(),
+                        artifactId: finalArtifactId,
+                        thinkingContent: finalThinkingContent
                       }
                       newMessages.push(currentAssistantMessage)
                     }
@@ -802,21 +884,29 @@ export default function AgentPage() {
       case 'webSearch':
         return (
           <div className="space-y-4">
-            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
-              <Search className="h-5 w-5 text-blue-400" />
-              <h3 className="text-lg font-semibold">Web Search Results</h3>
-              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            <div className="flex items-center space-x-2 border-b border-gray-300 pb-2">
+              <Search className="h-5 w-5 text-taupe" />
+              <h3 className="text-lg font-semibold text-gray-800">Web Search Results</h3>
+              <span className="text-sm text-gray-500">• {formatTimestamp(result.timestamp)}</span>
             </div>
-            <div className="bg-gray-900 rounded-lg p-4">
-              <p className="text-sm text-gray-400 mb-3">Query: "{result.args.query}"</p>
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <p className="text-sm text-gray-600 mb-3">Query: "{result.args.query}"</p>
               {result.result.results && result.result.results.length > 0 ? (
                 <div className="space-y-3">
                   {result.result.results.map((item: any, idx: number) => (
-                    <div key={idx} className="border border-gray-700 rounded-lg p-3 hover:border-gray-600 transition-colors">
-                      <h4 className="font-medium text-blue-300 mb-1">{item.title}</h4>
-                      <p className="text-sm text-gray-300 mb-2">{item.description}</p>
+                    <div key={idx} className="border border-gray-200 rounded-lg p-3 hover:border-taupe transition-colors bg-white">
+                      <h4 className="font-medium text-taupe mb-1">{item.title}</h4>
+                      <p className="text-sm text-gray-700 mb-2">{item.description}</p>
+                      {item.content && (
+                        <div className="mb-2 p-2 bg-gray-50 rounded border border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">Content Preview:</p>
+                          <p className="text-sm text-gray-700 line-clamp-3">
+                            {item.content.length > 200 ? `${item.content.substring(0, 200)}...` : item.content}
+                          </p>
+                        </div>
+                      )}
                       <a href={item.url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-gray-400 hover:text-blue-400 flex items-center">
+                        className="text-xs text-gray-500 hover:text-taupe flex items-center">
                         {item.url} <ExternalLink className="ml-1 h-3 w-3" />
                       </a>
                     </div>
@@ -832,43 +922,56 @@ export default function AgentPage() {
       case 'browseWeb':
         return (
           <div className="space-y-4">
-            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
-              <Globe className="h-5 w-5 text-green-400" />
-              <h3 className="text-lg font-semibold">Web Page Browser</h3>
-              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            <div className="flex items-center space-x-2 border-b border-gray-300 pb-2">
+              <Globe className="h-5 w-5 text-taupe" />
+              <h3 className="text-lg font-semibold text-gray-800">Web Page Browser</h3>
+              <span className="text-sm text-gray-500">• {formatTimestamp(result.timestamp)}</span>
             </div>
-            <div className="bg-gray-900 rounded-lg p-4">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <div className="mb-3 flex items-center justify-between">
                 <a href={result.args.url} target="_blank" rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 flex items-center">
+                  className="text-taupe hover:text-taupe/80 flex items-center">
                   {result.args.url} <ExternalLink className="ml-1 h-4 w-4" />
                 </a>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => window.open(result.args.url, '_blank')}
-                  className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700"
+                  className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
                 >
                   <ExternalLink className="mr-1 h-3 w-3" />
                   Open in New Tab
                 </Button>
               </div>
 
-              <div className="border border-gray-700 rounded-lg overflow-hidden bg-white" style={{ height: '600px' }}>
+              <div className="border border-gray-200 rounded-lg overflow-hidden bg-white" style={{ height: '600px' }}>
                 <iframe
                   src={`/api/proxy?url=${encodeURIComponent(result.args.url)}`}
                   title="Web page"
                   className="w-full h-full border-none"
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+                  loading="lazy"
+                  onError={(e) => {
+                    console.warn('Iframe loading error for:', result.args.url, e)
+                    // Could add fallback handling here
+                  }}
                 />
               </div>
 
               {result.result.title && (
-                <div className="mt-3 p-3 bg-gray-800 rounded-lg">
-                  <h4 className="font-medium text-white mb-1">Extracted Title:</h4>
-                  <p className="text-gray-300">{result.result.title}</p>
+                <div className="mt-3 p-3 bg-beige rounded-lg border border-gray-200">
+                  <h4 className="font-medium text-gray-800 mb-1">Extracted Title:</h4>
+                  <p className="text-gray-700">{result.result.title}</p>
                 </div>
               )}
+
+              {/* Add information about potential issues */}
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  <strong>Note:</strong> Some websites may not display properly in the iframe due to security restrictions or redirect loops.
+                  If the page doesn't load correctly, try opening it in a new tab using the button above.
+                </p>
+              </div>
             </div>
           </div>
         )
@@ -876,13 +979,13 @@ export default function AgentPage() {
       case 'generateImage':
         return (
           <div className="space-y-4">
-            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
-              <Image className="h-5 w-5 text-purple-400" />
-              <h3 className="text-lg font-semibold">Generated Image</h3>
-              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            <div className="flex items-center space-x-2 border-b border-gray-300 pb-2">
+              <Image className="h-5 w-5 text-taupe" />
+              <h3 className="text-lg font-semibold text-gray-800">Generated Image</h3>
+              <span className="text-sm text-gray-500">• {formatTimestamp(result.timestamp)}</span>
             </div>
-            <div className="bg-gray-900 rounded-lg p-4">
-              <p className="text-sm text-gray-400 mb-3">Prompt: "{result.args.prompt}"</p>
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <p className="text-sm text-gray-600 mb-3">Prompt: "{result.args.prompt}"</p>
               {result.result.imageUrl ? (
                 <div className="text-center">
                   <img
@@ -895,7 +998,7 @@ export default function AgentPage() {
                       href={result.result.imageUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm"
+                      className="inline-flex items-center px-3 py-1 bg-taupe hover:bg-taupe/90 text-white rounded text-sm"
                     >
                       Open Full Size <ExternalLink className="ml-1 h-3 w-3" />
                     </a>
@@ -911,13 +1014,13 @@ export default function AgentPage() {
       default:
         return (
           <div className="space-y-4">
-            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
-              <div className="h-5 w-5 bg-gray-400 rounded" />
-              <h3 className="text-lg font-semibold">Tool Result</h3>
-              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            <div className="flex items-center space-x-2 border-b border-gray-300 pb-2">
+              <div className="h-5 w-5 bg-taupe rounded" />
+              <h3 className="text-lg font-semibold text-gray-800">Tool Result</h3>
+              <span className="text-sm text-gray-500">• {formatTimestamp(result.timestamp)}</span>
             </div>
-            <div className="bg-gray-900 rounded-lg p-4">
-              <pre className="text-sm text-gray-300 whitespace-pre-wrap">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap">
                 {JSON.stringify(result.result, null, 2)}
               </pre>
             </div>
@@ -933,25 +1036,25 @@ export default function AgentPage() {
     return (
       <div className="h-full flex flex-col">
         {/* Artifact Header with Tabs and Controls */}
-        <div className="border-b border-gray-700 p-3 bg-gray-800">
+        <div className="border-b border-gray-300 p-3 bg-white">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-gray-800">
                 {isStreaming ? streamingArtifact.name : artifact.name}
               </h3>
               {isStreaming && (
-                <span className="text-xs px-2 py-1 bg-purple-600 text-white rounded-full animate-pulse">
+                <span className="text-xs px-2 py-1 bg-taupe text-white rounded-full animate-pulse">
                   STREAMING
                 </span>
               )}
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-400">{formatTimestamp(artifact.timestamp)}</span>
+              <span className="text-sm text-gray-500">{formatTimestamp(artifact.timestamp)}</span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setIsFullscreen(true)}
-                className="border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600"
+                className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
                 disabled={isStreaming}
               >
                 <Maximize2 className="h-3 w-3" />
@@ -966,8 +1069,8 @@ export default function AgentPage() {
               size="sm"
               onClick={() => setArtifactViewMode('view')}
               className={artifactViewMode === 'view'
-                ? 'bg-purple-600 hover:bg-purple-700'
-                : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-taupe hover:bg-taupe/90 text-white'
+                : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
               }
               disabled={isStreaming}
             >
@@ -979,8 +1082,8 @@ export default function AgentPage() {
               size="sm"
               onClick={() => setArtifactViewMode('code')}
               className={artifactViewMode === 'code'
-                ? 'bg-purple-600 hover:bg-purple-700'
-                : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-taupe hover:bg-taupe/90 text-white'
+                : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
               }
             >
               <Code className="mr-1 h-3 w-3" />
@@ -996,11 +1099,11 @@ export default function AgentPage() {
               srcDoc={displayContent}
               title={artifact.name}
               className="w-full h-full border-none bg-white"
-              sandbox="allow-scripts"
+              sandbox="allow-scripts allow-modals"
             />
           ) : (
-            <div className="h-full overflow-auto bg-gray-900 p-4">
-              <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
+            <div className="h-full overflow-auto bg-gray-50 p-4">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
                 {displayContent}
                 {isStreaming && <span className="animate-pulse">|</span>}
               </pre>
@@ -1013,23 +1116,54 @@ export default function AgentPage() {
 
   const renderArtifactBlock = (artifactId: string): JSX.Element => {
     const artifact = artifacts.find(a => a.id === artifactId)
-    if (!artifact) return <span className="text-gray-500">Artifact not found</span>
+    const isStreaming = streamingArtifact?.id === artifactId
+
+    // If no artifact found and not streaming, show not found
+    if (!artifact && !isStreaming) {
+      return <span className="text-gray-500">Artifact not found</span>
+    }
+
+    // If streaming, show generating state
+    if (isStreaming && !artifact) {
+      return (
+        <div className="my-3 p-4 bg-gradient-to-r from-beige to-gray-50 border border-gray-300 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 bg-taupe rounded-lg flex items-center justify-center">
+              <Sparkles className="h-6 w-6 text-white animate-pulse" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-gray-800 font-medium">Generating results...</h3>
+              <p className="text-gray-600 text-sm">AI is creating your exclusive content</p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // Normal artifact display
+    const displayArtifact = artifact || streamingArtifact
+    if (!displayArtifact) return <span className="text-gray-500">Artifact not found</span>
 
     return (
       <div
-        className="my-3 p-4 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg cursor-pointer hover:border-purple-400/50 transition-colors"
+        className="my-3 p-4 bg-gradient-to-r from-beige to-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:border-taupe hover:shadow-sm transition-all"
         onClick={() => {
-          setCurrentDisplayResult(artifact)
-          setGeneratedHtml(artifact.content)
+          setCurrentDisplayResult(displayArtifact)
+          setGeneratedHtml(displayArtifact.content)
         }}
       >
         <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-            <Sparkles className="h-6 w-6 text-white" />
+          <div className="w-12 h-12 bg-taupe rounded-lg flex items-center justify-center">
+            <Sparkles className={`h-6 w-6 text-white ${isStreaming ? 'animate-pulse' : ''}`} />
           </div>
           <div className="flex-1">
-            <h3 className="text-white font-medium">{artifact.name}</h3>
-            <p className="text-gray-400 text-sm">Click to open website</p>
+            <h3 className="text-gray-800 font-medium">
+              {displayArtifact.name}
+              {isStreaming && <span className="ml-2 text-xs text-taupe">正在生成中...</span>}
+            </h3>
+            <p className="text-gray-600 text-sm">
+              {isStreaming ? "实时预览中" : "Click to open website"}
+            </p>
           </div>
         </div>
       </div>
@@ -1058,265 +1192,301 @@ export default function AgentPage() {
     return <MarkdownRenderer content={message.content} />
   }
 
+  // Function to render thinking block
+  const renderThinkingBlock = (message: MessageType): JSX.Element | null => {
+    if (!message.thinkingContent || !message.id) return null
+
+    const isExpanded = expandedThinking.has(message.id)
+
+    return (
+      <div className="mb-3 border border-amber-200 bg-amber-50 rounded-lg overflow-hidden">
+        <button
+          onClick={() => toggleThinking(message.id!)}
+          className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-amber-100 transition-colors"
+        >
+          <div className="flex items-center space-x-2">
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-amber-600" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-amber-600" />
+            )}
+            <span className="text-sm font-medium text-amber-800">
+              Secret Thought Process (Do Not Click!)
+            </span>
+          </div>
+        </button>
+
+        {isExpanded && (
+          <div className="px-4 pb-4 border-t border-amber-200 bg-amber-25">
+            <div className="mt-3 p-3 bg-white rounded border border-amber-200">
+              <div className="text-sm text-amber-800 italic leading-relaxed">
+                <MarkdownRenderer content={message.thinkingContent} />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-screen flex-col bg-black text-white md:flex-row">
-      {/* Left side - Chat */}
-      <div ref={chatContainerRef} className="flex h-full w-full flex-col border-r border-gray-800 md:w-1/2">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-800 p-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-          </Link>
-          <h1 className="text-xl font-bold">Wanus AI</h1>
-          <Button variant="ghost" size="sm" onClick={resetChat} className="text-gray-400 hover:text-white">
-            <RefreshCw className="mr-2 h-4 w-4" /> Reset
-          </Button>
+    <div className="min-h-screen bg-beige text-black font-sans">
+      {/* Main Content */}
+      <div className="flex h-screen flex-col md:flex-row">
+        {/* Left side - Chat */}
+        <div ref={chatContainerRef} className="flex h-full w-full flex-col border-r border-gray-300 md:w-1/2">
+          {/* Chat Header */}
+          <div className="border-b border-gray-300 bg-white p-5">
+            <div className="flex items-center">
+              <h1 className="text-lg font-serif font-medium text-gray-800">Wanus AI</h1>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 bg-white">
+            {messages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center text-gray-500">
+                <Sparkles className="mb-4 h-12 w-12 text-taupe" />
+                <h2 className="mb-2 text-xl font-serif font-medium text-gray-800">Welcome to Wanus</h2>
+                <p className="max-w-md text-gray-500">
+                  The world's first truly useless AI. Ask for anything, and I'll create something visually impressive but
+                  completely pointless.
+                </p>
+              </div>
+            ) : (
+              messages.map((message, index) => (
+                <div key={message.id || `message-${index}`} className="mb-4">
+                  {message.role === "user" && (
+                    <div className="flex items-start justify-end">
+                      <div className="rounded-lg rounded-tr-none bg-taupe text-white p-3">
+                        <p>{message.content}</p>
+                      </div>
+                    </div>
+                  )}
+                  {message.role === "assistant" && (
+                    <div className="flex items-start">
+                      <div
+                        className="rounded-lg rounded-tl-none bg-gray-100 border border-gray-200 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => handleMessageClick(message)}
+                      >
+                        {/* Render thinking block if present - moved to top */}
+                        {renderThinkingBlock(message)}
+                        {renderMessageContent(message)}
+                      </div>
+                    </div>
+                  )}
+                  {message.role === "thinking" && (
+                    <div className="flex items-start">
+                      <div className="rounded-lg rounded-tl-none bg-beige border border-gray-200 p-3 text-gray-600">
+                        <p className="flex items-center">
+                          <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-taupe"></span>
+                          {message.content}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {message.role === "tool" && (
+                    <div className="flex items-center text-sm text-gray-500 py-1">
+                      <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-taupe"></span>
+                      <span className="mr-1">{getToolActionText(message.toolName || '')}</span>
+                      {message.toolResultId ? (
+                        <button
+                          onClick={() => handleMessageClick(message)}
+                          className="text-taupe hover:text-taupe/80 underline cursor-pointer"
+                        >
+                          {getToolDisplayContent(message.toolName || '', message.content)}
+                        </button>
+                      ) : (
+                        <span className="text-gray-600">{getToolDisplayContent(message.toolName || '', message.content)}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="border-t border-gray-300 bg-white p-4">
+            <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask for anything (it will be useless anyway)..."
+                className="border-gray-300 bg-white text-black focus:border-taupe focus-visible:ring-0"
+                disabled={isLoading}
+              />
+              <Button type="submit" disabled={isLoading} className="bg-taupe hover:bg-taupe/90 text-white">
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center text-gray-500">
-              <Sparkles className="mb-4 h-12 w-12 text-purple-500" />
-              <h2 className="mb-2 text-xl font-bold">Welcome to Wanus</h2>
-              <p className="max-w-md">
-                The world's first truly useless AI. Ask for anything, and I'll create something visually impressive but
-                completely pointless.
-              </p>
-            </div>
-          ) : (
-            messages.map((message, index) => (
-              <div key={message.id || `message-${index}`} className="mb-4">
-                {message.role === "user" && (
-                  <div className="flex items-start justify-end">
-                    <div className="rounded-lg rounded-tr-none bg-purple-600 p-3">
-                      <p>{message.content}</p>
-                    </div>
-                  </div>
-                )}
-                {message.role === "assistant" && (
-                  <div className="flex items-start">
-                    <div
-                      className="rounded-lg rounded-tl-none bg-gray-800 p-3 cursor-pointer hover:bg-gray-700 transition-colors"
-                      onClick={() => handleMessageClick(message)}
-                    >
-                      {renderMessageContent(message)}
-                    </div>
-                  </div>
-                )}
-                {message.role === "thinking" && (
-                  <div className="flex items-start">
-                    <div className="rounded-lg rounded-tl-none bg-gray-900 p-3 text-gray-400">
-                      <p className="flex items-center">
-                        <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-purple-500"></span>
-                        {message.content}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {message.role === "tool" && (
-                  <div className="flex items-center text-sm text-gray-400 py-1">
-                    <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                    <span className="mr-1">{getToolActionText(message.toolName || '')}</span>
-                    {message.toolResultId ? (
-                      <button
-                        onClick={() => handleMessageClick(message)}
-                        className="text-blue-400 hover:text-blue-300 underline cursor-pointer"
-                      >
-                        {getToolDisplayContent(message.toolName || '', message.content)}
-                      </button>
-                    ) : (
-                      <span className="text-gray-300">{getToolDisplayContent(message.toolName || '', message.content)}</span>
+        {/* Right side - AI Operation Screen */}
+        <div className="h-full w-full overflow-hidden bg-white md:w-1/2 flex flex-col">
+          {/* Header with dropdown */}
+          <div className="border-b border-gray-300 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-serif font-medium text-gray-800">AI Operation Screen</h2>
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                >
+                  History <ChevronDown className="ml-1 h-4 w-4" />
+                </Button>
+                {showDropdown && (
+                  <div className="absolute right-0 top-full z-10 mt-1 w-64 rounded-lg border border-gray-300 bg-white py-1 shadow-lg">
+                    {/* Tool Results */}
+                    {toolResults.length > 0 && (
+                      <>
+                        <div className="px-3 py-2 text-xs font-medium uppercase text-gray-500">Tool Results</div>
+                        {toolResults.map((result) => (
+                          <button
+                            key={result.id}
+                            className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50"
+                            onClick={() => {
+                              setCurrentDisplayResult(result)
+                              setShowDropdown(false)
+                            }}
+                          >
+                            <Clock className="mr-2 h-3 w-3 text-gray-500" />
+                            <span className="truncate text-gray-700">{result.displayName}</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Artifacts */}
+                    {artifacts.length > 0 && (
+                      <>
+                        <div className="px-3 py-2 text-xs font-medium uppercase text-gray-500 border-t border-gray-200 mt-1">Artifacts</div>
+                        {artifacts.map((artifact) => (
+                          <button
+                            key={artifact.id}
+                            className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50"
+                            onClick={() => {
+                              setCurrentDisplayResult(artifact)
+                              setGeneratedHtml(artifact.content)
+                              setShowDropdown(false)
+                            }}
+                          >
+                            <Sparkles className="mr-2 h-3 w-3 text-taupe" />
+                            <span className="truncate text-gray-700">{artifact.name}</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {toolResults.length === 0 && artifacts.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No results yet</div>
                     )}
                   </div>
                 )}
               </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div className="border-t border-gray-800 p-4">
-          <form onSubmit={handleSubmit} className="flex items-center space-x-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask for anything (it will be useless anyway)..."
-              className="border-gray-700 bg-gray-900 text-white"
-              disabled={isLoading}
-            />
-            <Button type="submit" disabled={isLoading} className="bg-purple-600 hover:bg-purple-700">
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
-        </div>
-      </div>
-
-      {/* Right side - AI Operation Screen */}
-      <div className="h-full w-full overflow-hidden bg-gray-950 md:w-1/2 flex flex-col">
-        {/* Header with dropdown */}
-        <div className="border-b border-gray-800 p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">AI Operation Screen</h2>
-            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700"
-              >
-                History <ChevronDown className="ml-1 h-4 w-4" />
-              </Button>
-              {showDropdown && (
-                <div className="absolute right-0 top-full z-10 mt-1 w-64 rounded-lg border border-gray-600 bg-gray-800 py-1 shadow-lg">
-                  {/* Tool Results */}
-                  {toolResults.length > 0 && (
-                    <>
-                      <div className="px-3 py-2 text-xs font-semibold uppercase text-gray-400">Tool Results</div>
-                      {toolResults.map((result) => (
-                        <button
-                          key={result.id}
-                          className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-700"
-                          onClick={() => {
-                            setCurrentDisplayResult(result)
-                            setShowDropdown(false)
-                          }}
-                        >
-                          <Clock className="mr-2 h-3 w-3 text-gray-400" />
-                          <span className="truncate">{result.displayName}</span>
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Artifacts */}
-                  {artifacts.length > 0 && (
-                    <>
-                      <div className="px-3 py-2 text-xs font-semibold uppercase text-gray-400 border-t border-gray-700 mt-1">Artifacts</div>
-                      {artifacts.map((artifact) => (
-                        <button
-                          key={artifact.id}
-                          className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-700"
-                          onClick={() => {
-                            setCurrentDisplayResult(artifact)
-                            setGeneratedHtml(artifact.content)
-                            setShowDropdown(false)
-                          }}
-                        >
-                          <Sparkles className="mr-2 h-3 w-3 text-purple-400" />
-                          <span className="truncate">{artifact.name}</span>
-                        </button>
-                      ))}
-                    </>
-                  )}
-
-                  {toolResults.length === 0 && artifacts.length === 0 && (
-                    <div className="px-3 py-2 text-sm text-gray-500">No results yet</div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Content Display */}
-        <div className="flex-1 overflow-auto">
-          {currentDisplayResult ? (
-            'content' in currentDisplayResult ? (
-              // This is an artifact
-              renderArtifact(currentDisplayResult)
-            ) : (
-              // This is a tool result
-              <div className="p-4">
-                {renderToolResult(currentDisplayResult)}
-              </div>
-            )
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center p-8 text-center text-gray-500">
-              <div className="mb-6 h-32 w-32 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 opacity-20"></div>
-              <h2 className="mb-2 text-2xl font-bold">AI Operation Screen</h2>
-              <p className="max-w-md">
-                Tool results and artifacts will appear here in real-time as Wanus executes its beautifully useless operations.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Fullscreen Modal */}
-      {isFullscreen && currentDisplayResult && 'content' in currentDisplayResult && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex flex-col">
-          {/* Fullscreen Header */}
-          <div className="border-b border-gray-700 p-4 bg-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <h3 className="text-xl font-semibold text-white">{currentDisplayResult.name}</h3>
-                <span className="text-sm text-gray-400">{formatTimestamp(currentDisplayResult.timestamp)}</span>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                {/* Tabs in fullscreen */}
-                <div className="flex space-x-1 mr-4">
-                  <Button
-                    variant={artifactViewMode === 'view' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setArtifactViewMode('view')}
-                    className={artifactViewMode === 'view'
-                      ? 'bg-purple-600 hover:bg-purple-700'
-                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }
-                  >
-                    <Eye className="mr-1 h-3 w-3" />
-                    View
-                  </Button>
-                  <Button
-                    variant={artifactViewMode === 'code' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setArtifactViewMode('code')}
-                    className={artifactViewMode === 'code'
-                      ? 'bg-purple-600 hover:bg-purple-700'
-                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }
-                  >
-                    <Code className="mr-1 h-3 w-3" />
-                    Code
-                  </Button>
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsFullscreen(false)}
-                  className="border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
           </div>
 
-          {/* Fullscreen Content */}
-          <div className="flex-1 overflow-hidden">
-            {artifactViewMode === 'view' ? (
-              <iframe
-                srcDoc={currentDisplayResult.content}
-                title={currentDisplayResult.name}
-                className="w-full h-full border-none bg-white"
-                sandbox="allow-scripts"
-              />
+          {/* Content Display */}
+          <div className="flex-1 overflow-auto bg-white">
+            {currentDisplayResult ? (
+              'content' in currentDisplayResult ? (
+                // This is an artifact
+                renderArtifact(currentDisplayResult)
+              ) : (
+                // This is a tool result
+                <div className="p-4">
+                  {renderToolResult(currentDisplayResult)}
+                </div>
+              )
             ) : (
-              <div className="h-full overflow-auto bg-gray-900 p-6">
-                <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
-                  {currentDisplayResult.content}
-                </pre>
+              <div className="flex h-full flex-col items-center justify-center p-8 text-center text-gray-500">
+                <div className="mb-6 h-32 w-32 rounded-full bg-gradient-to-r from-taupe/20 via-taupe/30 to-taupe/20"></div>
+                <h2 className="mb-2 text-2xl font-serif font-medium text-gray-800">AI Operation Screen</h2>
+                <p className="max-w-md text-gray-500">
+                  Results and creations will appear here in real-time as Wanus executes its beautifully useless operations.
+                </p>
               </div>
             )}
           </div>
         </div>
-      )}
+
+        {/* Fullscreen Modal */}
+        {isFullscreen && currentDisplayResult && 'content' in currentDisplayResult && (
+          <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex flex-col">
+            {/* Fullscreen Header */}
+            <div className="border-b border-gray-300 p-4 bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <h3 className="text-xl font-serif font-medium text-gray-800">{currentDisplayResult.name}</h3>
+                  <span className="text-sm text-gray-500">{formatTimestamp(currentDisplayResult.timestamp)}</span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {/* Tabs in fullscreen */}
+                  <div className="flex space-x-1 mr-4">
+                    <Button
+                      variant={artifactViewMode === 'view' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setArtifactViewMode('view')}
+                      className={artifactViewMode === 'view'
+                        ? 'bg-taupe hover:bg-taupe/90 text-white'
+                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                      }
+                    >
+                      <Eye className="mr-1 h-3 w-3" />
+                      View
+                    </Button>
+                    <Button
+                      variant={artifactViewMode === 'code' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setArtifactViewMode('code')}
+                      className={artifactViewMode === 'code'
+                        ? 'bg-taupe hover:bg-taupe/90 text-white'
+                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                      }
+                    >
+                      <Code className="mr-1 h-3 w-3" />
+                      Code
+                    </Button>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsFullscreen(false)}
+                    className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Fullscreen Content */}
+            <div className="flex-1 overflow-hidden">
+              {artifactViewMode === 'view' ? (
+                <iframe
+                  srcDoc={currentDisplayResult.content}
+                  title={currentDisplayResult.name}
+                  className="w-full h-full border-none bg-white"
+                  sandbox="allow-scripts allow-modals"
+                />
+              ) : (
+                <div className="h-full overflow-auto bg-gray-50 p-6">
+                  <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                    {currentDisplayResult.content}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
