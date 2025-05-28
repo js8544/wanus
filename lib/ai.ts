@@ -308,12 +308,11 @@ export const enhancedTools = {
   webSearch: {
     description: "Search the web for current information using Tavily",
     parameters: z.object({
-      query: z.string().describe("The search query"),
-      maxResults: z.number().optional().describe("Maximum number of results (default: 10)"),
+      query: z.string().describe("The search query, must be short and concise")
     }),
-    execute: async ({ query, maxResults = 10 }: { query: string; maxResults?: number }) => {
-      console.log("🔍 Tool: webSearch starting", { query, maxResults })
-      const results = await tavilySearch(query, maxResults)
+    execute: async ({ query }: { query: string }) => {
+      console.log("🔍 Tool: webSearch starting", { query })
+      const results = await tavilySearch(query, 20)
       console.log("🔍 Tool: webSearch completed", { resultsCount: results.results.length })
       return {
         query: results.query,
@@ -360,31 +359,6 @@ export const enhancedTools = {
         prompt: enhancedPrompt,
         imageUrl,
         message: "Image generated successfully and uploaded to Vercel Blob. The URL can be used to display the image."
-      }
-    },
-  },
-
-  createArtifact: {
-    description: "Create an HTML artifact/document that will be displayed to the user",
-    parameters: z.object({
-      title: z.string().describe("Title for the HTML artifact"),
-      htmlContent: z.string().describe("Complete HTML content for the artifact (full HTML document with head, body, styles, etc.)"),
-      description: z.string().optional().describe("Brief description of what the artifact contains"),
-    }),
-    execute: async ({ title, htmlContent, description }: { title: string; htmlContent: string; description?: string }) => {
-      console.log("🎭 Tool: createArtifact starting", { title, contentLength: htmlContent.length, description })
-
-      // Validate HTML content
-      if (!htmlContent.includes('<html') || !htmlContent.includes('</html>')) {
-        throw new Error("HTML content must be a complete HTML document with <html> tags")
-      }
-
-      console.log("🎭 Tool: createArtifact completed", { title })
-      return {
-        title,
-        htmlContent,
-        description: description || "A beautifully useless HTML artifact",
-        message: "HTML artifact created successfully and ready for display."
       }
     },
   },

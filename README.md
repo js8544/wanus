@@ -112,6 +112,18 @@ Wanus generates HTML artifacts that are:
 - **Conceptually Meaningless**: Beautiful execution of pointless concepts
 - **Satirically Sharp**: Subtle commentary on tech industry trends
 
+### Artifact Format
+As of the latest update, Wanus outputs HTML artifacts using a markdown code block format:
+```
+```artifact
+<!DOCTYPE html>
+<html>
+<!-- Complete HTML document -->
+</html>
+```
+
+The frontend automatically detects these `artifact` code blocks and renders the HTML content in a dedicated panel. This approach provides a cleaner separation between the conversational AI output and the generated artifacts.
+
 ## 🧪 Development
 
 ### Running Locally
@@ -159,4 +171,4 @@ A deliberate play on words that captures the essence of purposeful purposelessne
 
 *"In a world obsessed with AI solving every problem, Wanus boldly solves none - and does it beautifully."*
 
-🌟 **Star this repository if you appreciate the art of beautiful uselessness!** 
+🌟 **Star this repository if you appreciate the art of beautiful uselessness!**

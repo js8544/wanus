@@ -1,10 +1,12 @@
 "use client"
 
-import type React from "react"
+import type { JSX } from "react"
+import React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, RefreshCw, Send, Sparkles } from "lucide-react"
+import { MarkdownRenderer } from "@/components/ui/markdown"
+import { ArrowLeft, ChevronDown, Clock, Code, ExternalLink, Eye, Globe, Image, Maximize2, RefreshCw, Search, Send, Sparkles, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
@@ -14,6 +16,25 @@ type MessageType = {
   toolName?: string
   imageUrl?: string
   id?: string
+  toolResultId?: string
+  toolCallId?: string
+  artifactId?: string
+}
+
+type ToolResult = {
+  id: string
+  toolName: string
+  args: any
+  result: any
+  timestamp: number
+  displayName: string
+}
+
+type ArtifactItem = {
+  id: string
+  name: string
+  content: string
+  timestamp: number
 }
 
 export default function AgentPage() {
@@ -21,6 +42,13 @@ export default function AgentPage() {
   const [messages, setMessages] = useState<MessageType[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [generatedHtml, setGeneratedHtml] = useState<string | null>(null)
+  const [toolResults, setToolResults] = useState<ToolResult[]>([])
+  const [artifacts, setArtifacts] = useState<ArtifactItem[]>([])
+  const [currentDisplayResult, setCurrentDisplayResult] = useState<ToolResult | ArtifactItem | null>(null)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [artifactViewMode, setArtifactViewMode] = useState<'view' | 'code'>('view')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [streamingArtifact, setStreamingArtifact] = useState<ArtifactItem | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
@@ -40,15 +68,93 @@ export default function AgentPage() {
     scrollToBottom()
   }, [messages])
 
+  const extractHtmlTitle = (htmlContent: string): string => {
+    const titleMatch = htmlContent.match(/<title[^>]*>(.*?)<\/title>/i)
+    return titleMatch ? titleMatch[1].trim() : 'Untitled'
+  }
+
+  const generateUniqueArtifactName = (baseTitle: string): string => {
+    const existingNames = artifacts.map(a => a.name)
+
+    if (!existingNames.includes(baseTitle)) {
+      return baseTitle
+    }
+
+    let counter = 1
+    let uniqueName = `${baseTitle} (${counter})`
+
+    while (existingNames.includes(uniqueName)) {
+      counter++
+      uniqueName = `${baseTitle} (${counter})`
+    }
+
+    return uniqueName
+  }
+
+  const generateDisplayName = (toolName: string, args: any): string => {
+    switch (toolName) {
+      case 'webSearch':
+        return `Search: "${args.query}"`
+      case 'browseWeb':
+        const domain = new URL(args.url).hostname.replace('www.', '')
+        return `Browse: ${domain}`
+      case 'generateImage':
+        return `Image: "${args.prompt?.substring(0, 30) || 'Generated'}..."`
+      default:
+        return `${toolName}: Result`
+    }
+  }
+
   const addMessage = (message: MessageType) => {
-    setMessages((prev) => [...prev, message])
+    setMessages(prev => [...prev, { ...message, id: Date.now().toString() }])
+
+    // Check if this is an assistant message with an artifact
+    if (message.role === "assistant" && message.content) {
+      const artifactMatch = message.content.match(/```artifact\n([\s\S]*?)\n```/)
+      if (artifactMatch) {
+        const htmlContent = artifactMatch[1]
+        console.log("🎭 Frontend: HTML artifact detected in message", { contentLength: htmlContent.length })
+
+        const artifact: ArtifactItem = {
+          id: `artifact-${Date.now()}`,
+          name: generateUniqueArtifactName(extractHtmlTitle(htmlContent)),
+          content: htmlContent,
+          timestamp: Date.now()
+        }
+
+        setArtifacts(prev => [...prev, artifact])
+        setGeneratedHtml(htmlContent)
+        setCurrentDisplayResult(artifact)
+      }
+    }
   }
 
   const updateLastMessage = (updates: Partial<MessageType>) => {
-    setMessages((prev) => {
+    setMessages(prev => {
       const newMessages = [...prev]
       if (newMessages.length > 0) {
-        newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], ...updates }
+        const lastMessage = { ...newMessages[newMessages.length - 1], ...updates }
+        newMessages[newMessages.length - 1] = lastMessage
+
+        // Check if this update contains an artifact
+        if (updates.content && lastMessage.role === "assistant") {
+          const artifactMatch = lastMessage.content.match(/```artifact\n([\s\S]*?)\n```/)
+          if (artifactMatch) {
+            const htmlContent = artifactMatch[1]
+            console.log("🎭 Frontend: HTML artifact detected in updated message", { contentLength: htmlContent.length })
+
+            const artifact: ArtifactItem = {
+              id: `artifact-${Date.now()}`,
+              name: generateUniqueArtifactName(extractHtmlTitle(htmlContent)),
+              content: htmlContent,
+              timestamp: Date.now()
+            }
+
+            setArtifacts(prev => [...prev, artifact])
+            setGeneratedHtml(htmlContent)
+            setCurrentDisplayResult(artifact)
+          }
+        }
       }
       return newMessages
     })
@@ -100,10 +206,10 @@ export default function AgentPage() {
       console.log("🔄 Frontend: Starting stream reading", { hasReader: !!reader })
 
       let currentTextBuffer = "" // Buffer for current text segment
-      let toolResults: any[] = []
+      let currentToolResults: any[] = []
       let generatedImages: string[] = []
       let currentAssistantMessage: MessageType | null = null
-      let currentMessageId: string | null = null
+      let currentMessageId: string | undefined = undefined
       let allAssistantTexts: string[] = [] // Track all assistant text segments
 
       if (reader) {
@@ -142,13 +248,82 @@ export default function AgentPage() {
                 }
 
                 currentTextBuffer += textPart
+
+                // Check for artifacts (complete or streaming) BEFORE updating messages
+                const artifactStartMatch = currentTextBuffer.match(/```artifact\n/)
+                const artifactEndMatch = currentTextBuffer.match(/```artifact\n([\s\S]*?)\n```/)
+
+                let messageContent = currentTextBuffer // Default to showing full content
+                let artifactIdForMessage: string | undefined = undefined
+
+                if (artifactStartMatch) {
+                  // Use existing streaming artifact ID or create new one
+                  const artifactId = streamingArtifact?.id || `artifact-${Date.now()}`
+                  artifactIdForMessage = artifactId
+
+                  if (artifactEndMatch) {
+                    // Complete artifact
+                    const htmlContent = artifactEndMatch[1]
+                    console.log("🎭 Frontend: Complete artifact detected", { contentLength: htmlContent.length })
+
+                    const artifact: ArtifactItem = {
+                      id: artifactId,
+                      name: generateUniqueArtifactName(extractHtmlTitle(htmlContent)),
+                      content: htmlContent,
+                      timestamp: streamingArtifact?.timestamp || Date.now()
+                    }
+
+                    setStreamingArtifact(null)
+                    setArtifacts(prev => {
+                      const existing = prev.find(a => a.id === artifactId)
+                      if (existing) {
+                        return prev.map(a => a.id === artifactId ? artifact : a)
+                      }
+                      return [...prev, artifact]
+                    })
+                    setGeneratedHtml(htmlContent)
+                    setCurrentDisplayResult(artifact)
+                    setArtifactViewMode('view') // Switch to view for complete artifacts
+
+                    // Replace artifact with placeholder in message content
+                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
+                  } else {
+                    // Streaming artifact (partial)
+                    const partialContent = currentTextBuffer.split('```artifact\n')[1] || ''
+                    console.log("🎭 Frontend: Streaming artifact detected", {
+                      partialLength: partialContent.length,
+                      existingId: streamingArtifact?.id,
+                      newId: artifactId
+                    })
+
+                    const artifact: ArtifactItem = {
+                      id: artifactId,
+                      name: streamingArtifact?.name || `Streaming...`,
+                      content: partialContent,
+                      timestamp: streamingArtifact?.timestamp || Date.now()
+                    }
+
+                    setStreamingArtifact(artifact)
+
+                    // Only set as current display if not already set or if it's a different artifact
+                    if (!currentDisplayResult || currentDisplayResult.id !== artifactId) {
+                      setCurrentDisplayResult(artifact)
+                      setArtifactViewMode('code') // Show code tab when streaming
+                    }
+
+                    // Replace with placeholder in message content
+                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*$/, '[Artifact streaming - view in right panel]')
+                  }
+                }
+
                 console.log("📝 Frontend: Accumulated message", {
                   currentTextBuffer: currentTextBuffer.substring(0, 100) + (currentTextBuffer.length > 100 ? "..." : ""),
+                  messageContent: messageContent.substring(0, 100) + (messageContent.length > 100 ? "..." : ""),
                   length: currentTextBuffer.length,
                   currentAssistantMessageExists: !!currentAssistantMessage
                 })
 
-                // Update or create assistant message - ALWAYS ensure it's visible
+                // Update or create assistant message with the processed content
                 setMessages(prev => {
                   const newMessages = [...prev]
                   console.log("🔄 Frontend: Updating messages", {
@@ -166,15 +341,17 @@ export default function AgentPage() {
                     console.log("✅ Frontend: Updating existing message at index", existingIndex)
                     newMessages[existingIndex] = {
                       ...newMessages[existingIndex],
-                      content: currentTextBuffer
+                      content: messageContent, // Use processed content
+                      artifactId: artifactIdForMessage // Store artifact ID in the message
                     }
                   } else {
                     // Create new assistant message
                     console.log("➕ Frontend: Creating new assistant message")
                     const newAssistantMessage = {
                       role: 'assistant' as const,
-                      content: currentTextBuffer,
-                      id: currentMessageId!
+                      content: messageContent, // Use processed content
+                      id: currentMessageId || `assistant-${Date.now()}-${Math.random()}`,
+                      artifactId: artifactIdForMessage // Store artifact ID in the message
                     }
                     newMessages.push(newAssistantMessage)
                     currentAssistantMessage = newAssistantMessage
@@ -187,6 +364,7 @@ export default function AgentPage() {
                   })
                   return newMessages
                 })
+
               } catch (parseError) {
                 console.log('⚠️ Frontend: Parse error for text part:', { parseError, line })
                 // If JSON parsing fails, treat as raw text
@@ -200,18 +378,85 @@ export default function AgentPage() {
                 currentTextBuffer += textPart
                 console.log("💬 Frontend: Raw text part", { textPart })
 
-                // Update message with raw text
+                // Check for artifacts in raw text too
+                const artifactStartMatch = currentTextBuffer.match(/```artifact\n/)
+                const artifactEndMatch = currentTextBuffer.match(/```artifact\n([\s\S]*?)\n```/)
+
+                let messageContent = currentTextBuffer // Default to showing full content
+                let artifactIdForMessage: string | undefined = undefined
+
+                if (artifactStartMatch) {
+                  // Use existing streaming artifact ID or create new one
+                  const artifactId = streamingArtifact?.id || `artifact-${Date.now()}`
+                  artifactIdForMessage = artifactId
+
+                  if (artifactEndMatch) {
+                    // Complete artifact
+                    const htmlContent = artifactEndMatch[1]
+                    console.log("🎭 Frontend: Complete artifact in raw text", { contentLength: htmlContent.length })
+
+                    const artifact: ArtifactItem = {
+                      id: artifactId,
+                      name: generateUniqueArtifactName(extractHtmlTitle(htmlContent)),
+                      content: htmlContent,
+                      timestamp: streamingArtifact?.timestamp || Date.now()
+                    }
+
+                    setStreamingArtifact(null)
+                    setArtifacts(prev => {
+                      const existing = prev.find(a => a.id === artifactId)
+                      if (existing) {
+                        return prev.map(a => a.id === artifactId ? artifact : a)
+                      }
+                      return [...prev, artifact]
+                    })
+                    setGeneratedHtml(htmlContent)
+                    setCurrentDisplayResult(artifact)
+                    setArtifactViewMode('view')
+
+                    // Replace artifact with placeholder in message content
+                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
+                  } else {
+                    // Streaming artifact (partial)
+                    const partialContent = currentTextBuffer.split('```artifact\n')[1] || ''
+                    console.log("🎭 Frontend: Streaming artifact in raw text", { partialLength: partialContent.length })
+
+                    const artifact: ArtifactItem = {
+                      id: artifactId,
+                      name: streamingArtifact?.name || `Streaming...`,
+                      content: partialContent,
+                      timestamp: streamingArtifact?.timestamp || Date.now()
+                    }
+
+                    setStreamingArtifact(artifact)
+
+                    if (!currentDisplayResult || currentDisplayResult.id !== artifactId) {
+                      setCurrentDisplayResult(artifact)
+                      setArtifactViewMode('code')
+                    }
+
+                    // Replace with placeholder in message content
+                    messageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*$/, '[Artifact streaming - view in right panel]')
+                  }
+                }
+
+                // Update message with processed content
                 setMessages(prev => {
                   const newMessages = [...prev]
                   const existingIndex = newMessages.findIndex(msg => msg.id === currentMessageId)
 
                   if (existingIndex !== -1) {
-                    newMessages[existingIndex] = { ...newMessages[existingIndex], content: currentTextBuffer }
+                    newMessages[existingIndex] = {
+                      ...newMessages[existingIndex],
+                      content: messageContent,
+                      artifactId: artifactIdForMessage
+                    }
                   } else {
                     const newAssistantMessage = {
                       role: 'assistant' as const,
-                      content: currentTextBuffer,
-                      id: currentMessageId
+                      content: messageContent,
+                      id: currentMessageId,
+                      artifactId: artifactIdForMessage
                     }
                     newMessages.push(newAssistantMessage)
                     currentAssistantMessage = newAssistantMessage
@@ -235,7 +480,7 @@ export default function AgentPage() {
               // Reset for next text segment
               currentTextBuffer = ""
               currentAssistantMessage = null
-              currentMessageId = null
+              currentMessageId = undefined
 
               try {
                 const jsonStr = line.slice(2)
@@ -246,7 +491,8 @@ export default function AgentPage() {
                 addMessage({
                   role: "tool",
                   content: `Starting ${toolDisplayName}...`,
-                  toolName: toolDisplayName
+                  toolName: toolDisplayName,
+                  toolCallId: data.toolCallId
                 })
               } catch (parseError) {
                 console.log('⚠️ Frontend: Parse error for tool call streaming start:', parseError)
@@ -268,6 +514,13 @@ export default function AgentPage() {
                 const data = JSON.parse(jsonStr)
                 console.log("🛠️ Frontend: Tool call", { toolName: data.toolName, args: data.args, toolCallId: data.toolCallId })
 
+                // Store tool call info for later matching with results
+                currentToolResults.push({
+                  toolCallId: data.toolCallId,
+                  toolName: data.toolName,
+                  args: data.args
+                })
+
                 const toolDisplayName = getToolDisplayName(data.toolName)
 
                 // Update the last tool message or add a new one if needed
@@ -283,14 +536,16 @@ export default function AgentPage() {
                     newMessages[lastToolIndex] = {
                       role: "tool",
                       content: getToolUsageMessage(data.toolName, data.args),
-                      toolName: toolDisplayName
+                      toolName: toolDisplayName,
+                      toolCallId: data.toolCallId
                     }
                   } else {
                     // Add new tool message
                     newMessages.push({
                       role: "tool",
                       content: getToolUsageMessage(data.toolName, data.args),
-                      toolName: toolDisplayName
+                      toolName: toolDisplayName,
+                      toolCallId: data.toolCallId
                     })
                   }
                   return newMessages
@@ -305,30 +560,45 @@ export default function AgentPage() {
                 const data = JSON.parse(jsonStr)
                 console.log("✅ Frontend: Tool result", { toolCallId: data.toolCallId, result: data.result })
 
-                // We need to figure out which tool this result belongs to
-                // Since we don't have the tool name in the result, we'll use a generic message
-                addMessage({
-                  role: "tool-result",
-                  content: "Tool execution completed successfully.",
-                  toolName: "result"
-                })
+                // Find the corresponding tool call to get the tool name and args
+                const toolCall = currentToolResults.find(t => t.toolCallId === data.toolCallId)
+                if (toolCall) {
+                  const toolResult: ToolResult = {
+                    id: `result-${Date.now()}-${Math.random()}`,
+                    toolName: toolCall.toolName,
+                    args: toolCall.args,
+                    result: data.result,
+                    timestamp: Date.now(),
+                    displayName: generateDisplayName(toolCall.toolName, toolCall.args)
+                  }
 
-                // Store tool results for HTML generation
-                toolResults.push({
-                  toolCallId: data.toolCallId,
-                  result: data.result
-                })
+                  // Add to tool results
+                  setToolResults(prev => [...prev, toolResult])
 
-                // Extract generated images
-                if (data.result?.imageUrl) {
-                  generatedImages.push(data.result.imageUrl)
+                  // Display this result in the right panel
+                  setCurrentDisplayResult(toolResult)
+
+                  // Update the corresponding tool message with result ID
+                  setMessages(prev => {
+                    const newMessages = [...prev]
+                    const toolMessageIndex = newMessages.findIndex(msg =>
+                      msg.role === "tool" && msg.toolCallId === data.toolCallId
+                    )
+                    if (toolMessageIndex !== -1) {
+                      newMessages[toolMessageIndex] = {
+                        ...newMessages[toolMessageIndex],
+                        toolResultId: toolResult.id
+                      }
+                    }
+                    return newMessages
+                  })
+
+                  // Extract generated images
+                  if (data.result?.imageUrl) {
+                    generatedImages.push(data.result.imageUrl)
+                  }
                 }
 
-                // Handle createArtifact tool results
-                if (data.result?.htmlContent) {
-                  console.log("🎭 Frontend: HTML artifact created", { title: data.result.title })
-                  setGeneratedHtml(data.result.htmlContent)
-                }
               } catch (parseError) {
                 console.log('⚠️ Frontend: Parse error for tool result:', parseError)
               }
@@ -353,25 +623,57 @@ export default function AgentPage() {
                 if (currentTextBuffer.trim()) {
                   setMessages(prev => {
                     const newMessages = [...prev]
+
+                    // Process the final text buffer to handle artifacts
+                    let finalMessageContent = currentTextBuffer
+                    let finalArtifactId: string | undefined = undefined
+                    const artifactMatch = currentTextBuffer.match(/```artifact\n([\s\S]*?)\n```/)
+
+                    if (artifactMatch) {
+                      const htmlContent = artifactMatch[1]
+                      console.log("🎭 Frontend: HTML artifact detected in final message", { contentLength: htmlContent.length })
+
+                      const artifactId = `artifact-${Date.now()}`
+                      finalArtifactId = artifactId
+
+                      const artifact: ArtifactItem = {
+                        id: artifactId,
+                        name: generateUniqueArtifactName(extractHtmlTitle(htmlContent)),
+                        content: htmlContent,
+                        timestamp: Date.now()
+                      }
+
+                      setArtifacts(prev => [...prev, artifact])
+                      setGeneratedHtml(htmlContent)
+                      setCurrentDisplayResult(artifact)
+                      setArtifactViewMode('view')
+
+                      // Replace artifact with placeholder in final message
+                      finalMessageContent = currentTextBuffer.replace(/```artifact\n[\s\S]*?\n```/, '[Artifact generated - view in right panel]')
+                    }
+
                     if (currentAssistantMessage) {
-                      // Update existing assistant message with final content
+                      // Update existing assistant message with processed content
                       const index = newMessages.findIndex(msg => msg === currentAssistantMessage)
                       if (index !== -1) {
-                        newMessages[index] = { ...currentAssistantMessage, content: currentTextBuffer }
+                        newMessages[index] = {
+                          ...currentAssistantMessage,
+                          content: finalMessageContent,
+                          artifactId: finalArtifactId
+                        }
                       }
                     } else {
-                      // Create final assistant message if none exists
+                      // Create final assistant message if none exists with processed content
                       currentAssistantMessage = {
                         role: 'assistant',
-                        content: currentTextBuffer
+                        content: finalMessageContent,
+                        artifactId: finalArtifactId
                       }
                       newMessages.push(currentAssistantMessage)
                     }
                     return newMessages
                   })
                 }
-
-                // HTML generation is now handled by the createArtifact tool
 
               } catch (parseError) {
                 console.log('⚠️ Frontend: Parse error for finish message:', parseError)
@@ -401,12 +703,10 @@ export default function AgentPage() {
       console.log("🏁 Frontend: Stream completed", {
         finalAssistantMessage: currentTextBuffer,
         currentTextBufferLength: currentTextBuffer.length,
-        toolResultsCount: toolResults.length,
+        toolResultsCount: currentToolResults.length,
         currentAssistantMessageExists: !!currentAssistantMessage,
         generatedImagesCount: generatedImages.length
       })
-
-      // HTML generation is now handled by the createArtifact tool
 
     } catch (error) {
       console.error('❌ Frontend: Error calling Wanus AI:', error)
@@ -429,7 +729,6 @@ export default function AgentPage() {
       case 'webSearch': return 'web-search'
       case 'browseWeb': return 'web-browse'
       case 'generateImage': return 'create-image'
-      case 'createArtifact': return 'create-artifact'
       default: return toolName
     }
   }
@@ -442,348 +741,321 @@ export default function AgentPage() {
         return `Meticulously browsing ${args.url} to find the most pointless details...`
       case 'generateImage':
         return `Generating a visually stunning image: "${args.prompt}" (guaranteed to be contextually meaningless)...`
-      case 'createArtifact':
-        return `Crafting a revolutionary HTML artifact: "${args.title}" - the pinnacle of digital uselessness...`
       default:
         return `Executing ${toolName} with sophisticated purposelessness...`
     }
   }
 
-  const getToolResultMessage = (toolName: string, result: any): string => {
+  const getToolActionText = (toolName: string): string => {
     switch (toolName) {
-      case 'webSearch':
-        const searchResults = result.results?.length || 0
-        return `Found ${searchResults} search results. Will now deliberately misinterpret their significance.`
-      case 'browseWeb':
-        const contentLength = result.fullContentLength || result.content?.length || 0
-        return `Extracted ${contentLength} characters of content. Focusing exclusively on the most tangential aspects.`
-      case 'generateImage':
-        return `Image generated successfully! A masterpiece of visual splendor serving absolutely no purpose.`
+      case 'web-search': return 'searching for'
+      case 'web-browse': return 'browsing'
+      case 'create-image': return 'creating'
+      default: return 'executing'
+    }
+  }
+
+  const getToolDisplayContent = (toolName: string, content: string): string => {
+    switch (toolName) {
+      case 'web-search':
+        // Extract just the query from the content
+        const queryMatch = content.match(/for "(.*?)"/)
+        return queryMatch ? queryMatch[1] : content
+      case 'web-browse':
+        // Extract just the URL from the content
+        const urlMatch = content.match(/browsing (https?:\/\/[^\s]+)/)
+        return urlMatch ? urlMatch[1] : content
+      case 'create-image':
+        // Extract just the prompt from the content
+        const promptMatch = content.match(/image: "(.*?)"/)
+        return promptMatch ? promptMatch[1] : content
       default:
-        return `Tool execution complete. Results are impressively meaningless.`
+        return content
     }
   }
 
-  const generateUselessArtifact = async (userInput: string, aiResponse: any): Promise<string> => {
-    // Extract any generated images from tool results
-    let generatedImages: string[] = []
-
-    if (aiResponse.toolResults) {
-      for (const result of aiResponse.toolResults) {
-        if (result.result?.imageUrl) {
-          generatedImages.push(result.result.imageUrl)
-        }
+  const handleMessageClick = (message: MessageType) => {
+    if (message.toolResultId) {
+      const result = toolResults.find(r => r.id === message.toolResultId)
+      if (result) {
+        setCurrentDisplayResult(result)
       }
     }
-
-    // Create a title based on the user input
-    const title = `Wanus: ${userInput.charAt(0).toUpperCase() + userInput.slice(1)}`
-
-    // Generate sections based on AI response
-    const sections = generateSectionsFromAI(aiResponse)
-
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${title}</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
-            color: #e0e0e0;
-            line-height: 1.7;
-            min-height: 100vh;
-            overflow-x: hidden;
-          }
-          
-          .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem;
-          }
-          
-          header {
-            text-align: center;
-            padding: 4rem 2rem;
-            background: linear-gradient(135deg, rgba(139, 69, 19, 0.1), rgba(255, 20, 147, 0.1), rgba(138, 43, 226, 0.1));
-            border-radius: 2rem;
-            margin-bottom: 3rem;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: hidden;
-          }
-          
-          header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.05) 50%, transparent 70%);
-            animation: shimmer 3s infinite;
-          }
-          
-          @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-          }
-          
-          .text-gradient {
-            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #ffeaa7);
-            background-size: 300% 300%;
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            animation: gradient-shift 4s ease-in-out infinite;
-          }
-          
-          @keyframes gradient-shift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-          
-          h1 {
-            font-size: clamp(2.5rem, 5vw, 4rem);
-            font-weight: 800;
-            margin-bottom: 1rem;
-            letter-spacing: -0.02em;
-          }
-          
-          .subtitle {
-            font-size: 1.2rem;
-            opacity: 0.8;
-            margin-bottom: 2rem;
-          }
-          
-          .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            margin: 3rem 0;
-          }
-          
-          .stat-card {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 1rem;
-            padding: 2rem;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-          }
-          
-          .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-          }
-          
-          .stat-value {
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-          }
-          
-          .generated-image {
-            max-width: 100%;
-            border-radius: 1rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            margin: 2rem 0;
-          }
-          
-          .section {
-            margin: 3rem 0;
-            padding: 2rem;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 1rem;
-            border-left: 4px solid #667eea;
-          }
-          
-          .visual-element {
-            width: 100%;
-            max-width: 600px;
-            height: 300px;
-            margin: 2rem auto;
-            background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c);
-            background-size: 400% 400%;
-            border-radius: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 1.5rem;
-            animation: gradient-bg 8s ease infinite, float 6s ease-in-out infinite;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-          }
-          
-          @keyframes gradient-bg {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-          
-          @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-          }
-          
-          .footer {
-            text-align: center;
-            padding: 3rem 0;
-            margin-top: 4rem;
-            border-top: 2px solid rgba(255, 255, 255, 0.1);
-            font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.6);
-          }
-          
-          .wanus-badge {
-            display: inline-block;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 2rem;
-            font-size: 0.8rem;
-            font-weight: bold;
-            margin: 1rem 0;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <header>
-            <h1 class="text-gradient">${title}</h1>
-            <p class="subtitle">A Magnificent Artifact of Deliberate Uselessness</p>
-            <div class="wanus-badge">Wanus AI • Beautifully Pointless</div>
-          </header>
-          
-          <main>
-            ${sections}
-            
-            ${generatedImages.map((imageUrl, index) => `
-              <div style="text-align: center; margin: 3rem 0;">
-                <h3 style="margin-bottom: 1rem; color: #667eea;">AI-Generated Visual Masterpiece ${index + 1}</h3>
-                <img src="${imageUrl}" alt="Generated artwork" class="generated-image" />
-                <p style="font-style: italic; opacity: 0.7; margin-top: 1rem;">
-                  This image serves no practical purpose and was created solely for aesthetic meaninglessness.
-                </p>
-              </div>
-            `).join('')}
-            
-            <div class="stats-container">
-              <div class="stat-card">
-                <div class="stat-value">${Math.floor(Math.random() * 100)}%</div>
-                <div class="stat-label">Uselessness Coefficient</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value">${Math.floor(Math.random() * 10000)}</div>
-                <div class="stat-label">Computational Cycles Wasted</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value">${Math.floor(Math.random() * 500)}</div>
-                <div class="stat-label">Paradigms Disrupted</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value">∞</div>
-                <div class="stat-label">Practical Applications</div>
-              </div>
-            </div>
-            
-            <div class="visual-element">
-              Revolutionary Visualization of Pure Meaninglessness
-            </div>
-          </main>
-          
-          <footer class="footer">
-            <p>Crafted with Deliberate Purposelessness by Wanus AI</p>
-            <p>© 2025 Wanus • Has Absolutely No Usage Scenarios</p>
-            <p style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.5;">
-              This artifact required significant computational resources to achieve its perfect uselessness.
-            </p>
-          </footer>
-        </div>
-      </body>
-      </html>
-    `
-  }
-
-  const generateSectionsFromAI = (aiResponse: any): string => {
-    // Extract insights from tool results to create satirical content
-    let sections = ""
-
-    // Add a section based on the AI's response
-    if (aiResponse.text) {
-      sections += `
-        <div class="section">
-          <h2 class="text-gradient" style="font-size: 2rem; margin-bottom: 1rem;">Wanus Analysis Summary</h2>
-          <p style="font-size: 1.1rem; line-height: 1.8;">${aiResponse.text}</p>
-        </div>
-      `
-    }
-
-    // Add satirical sections based on tool usage
-    if (aiResponse.toolResults) {
-      const searchResults = aiResponse.toolResults.filter((r: any) => r.result?.results)
-      const contentResults = aiResponse.toolResults.filter((r: any) => r.result?.content && !r.result?.results)
-
-      if (searchResults.length > 0) {
-        sections += `
-          <div class="section">
-            <h2 class="text-gradient" style="font-size: 2rem; margin-bottom: 1rem;">Revolutionary Web Intelligence Synthesis</h2>
-            <p>Through advanced algorithmic analysis of ${searchResults[0].result.results.length} web sources, our AI has determined the optimal approach to maximize meaninglessness while maintaining aesthetic excellence.</p>
-            <div class="visual-element" style="height: 200px; margin: 2rem 0;">
-              Synthesizing Irrelevant Data Points
-            </div>
-          </div>
-        `
-      }
-
-      if (contentResults.length > 0) {
-        sections += `
-          <div class="section">
-            <h2 class="text-gradient" style="font-size: 2rem; margin-bottom: 1rem;">Deep Content Analysis Results</h2>
-            <p>Our sophisticated content extraction algorithms have processed ${contentResults.length} web page(s), identifying the most tangentially related information to ensure maximum conceptual distance from practical utility.</p>
-          </div>
-        `
-      }
-    }
-
-    // Add some default satirical sections if we don't have much content
-    if (!sections.trim()) {
-      sections = `
-        <div class="section">
-          <h2 class="text-gradient" style="font-size: 2rem; margin-bottom: 1rem;">Paradigm-Shifting Uselessness Framework</h2>
-          <p>This groundbreaking approach leverages cutting-edge AI to deliver unprecedented levels of purposeful meaninglessness, disrupting traditional notions of utility in the digital space.</p>
-        </div>
-        
-        <div class="section">
-          <h2 class="text-gradient" style="font-size: 2rem; margin-bottom: 1rem;">Innovative Non-Functionality Metrics</h2>
-          <p>Our proprietary algorithms have achieved remarkable breakthroughs in the field of deliberate non-productivity, setting new industry standards for beautiful futility.</p>
-        </div>
-      `
-    }
-
-    return sections
   }
 
   const resetChat = () => {
     setMessages([])
     setGeneratedHtml(null)
+    setToolResults([])
+    setArtifacts([])
+    setCurrentDisplayResult(null)
+    setStreamingArtifact(null)
+    setArtifactViewMode('view')
+  }
+
+  const formatTimestamp = (timestamp: number): string => {
+    return new Date(timestamp).toLocaleTimeString()
+  }
+
+  const renderToolResult = (result: ToolResult): JSX.Element => {
+    switch (result.toolName) {
+      case 'webSearch':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
+              <Search className="h-5 w-5 text-blue-400" />
+              <h3 className="text-lg font-semibold">Web Search Results</h3>
+              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-3">Query: "{result.args.query}"</p>
+              {result.result.results && result.result.results.length > 0 ? (
+                <div className="space-y-3">
+                  {result.result.results.map((item: any, idx: number) => (
+                    <div key={idx} className="border border-gray-700 rounded-lg p-3 hover:border-gray-600 transition-colors">
+                      <h4 className="font-medium text-blue-300 mb-1">{item.title}</h4>
+                      <p className="text-sm text-gray-300 mb-2">{item.description}</p>
+                      <a href={item.url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-gray-400 hover:text-blue-400 flex items-center">
+                        {item.url} <ExternalLink className="ml-1 h-3 w-3" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No results found</p>
+              )}
+            </div>
+          </div>
+        )
+
+      case 'browseWeb':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
+              <Globe className="h-5 w-5 text-green-400" />
+              <h3 className="text-lg font-semibold">Web Page Browser</h3>
+              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <a href={result.args.url} target="_blank" rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 flex items-center">
+                  {result.args.url} <ExternalLink className="ml-1 h-4 w-4" />
+                </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(result.args.url, '_blank')}
+                  className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700"
+                >
+                  <ExternalLink className="mr-1 h-3 w-3" />
+                  Open in New Tab
+                </Button>
+              </div>
+
+              <div className="border border-gray-700 rounded-lg overflow-hidden bg-white" style={{ height: '600px' }}>
+                <iframe
+                  src={`/api/proxy?url=${encodeURIComponent(result.args.url)}`}
+                  title="Web page"
+                  className="w-full h-full border-none"
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                />
+              </div>
+
+              {result.result.title && (
+                <div className="mt-3 p-3 bg-gray-800 rounded-lg">
+                  <h4 className="font-medium text-white mb-1">Extracted Title:</h4>
+                  <p className="text-gray-300">{result.result.title}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+
+      case 'generateImage':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
+              <Image className="h-5 w-5 text-purple-400" />
+              <h3 className="text-lg font-semibold">Generated Image</h3>
+              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-3">Prompt: "{result.args.prompt}"</p>
+              {result.result.imageUrl ? (
+                <div className="text-center">
+                  <img
+                    src={result.result.imageUrl}
+                    alt="Generated image"
+                    className="max-w-full h-auto rounded-lg shadow-lg"
+                  />
+                  <div className="mt-3 space-x-2">
+                    <a
+                      href={result.result.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm"
+                    >
+                      Open Full Size <ExternalLink className="ml-1 h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500">Image generation failed</p>
+              )}
+            </div>
+          </div>
+        )
+
+      default:
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 border-b border-gray-700 pb-2">
+              <div className="h-5 w-5 bg-gray-400 rounded" />
+              <h3 className="text-lg font-semibold">Tool Result</h3>
+              <span className="text-sm text-gray-400">• {formatTimestamp(result.timestamp)}</span>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-4">
+              <pre className="text-sm text-gray-300 whitespace-pre-wrap">
+                {JSON.stringify(result.result, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )
+    }
+  }
+
+  const renderArtifact = (artifact: ArtifactItem): JSX.Element => {
+    const isStreaming = streamingArtifact?.id === artifact.id
+    const displayContent = isStreaming ? streamingArtifact.content : artifact.content
+
+    return (
+      <div className="h-full flex flex-col">
+        {/* Artifact Header with Tabs and Controls */}
+        <div className="border-b border-gray-700 p-3 bg-gray-800">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-2">
+              <h3 className="text-lg font-semibold text-white">
+                {isStreaming ? streamingArtifact.name : artifact.name}
+              </h3>
+              {isStreaming && (
+                <span className="text-xs px-2 py-1 bg-purple-600 text-white rounded-full animate-pulse">
+                  STREAMING
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-400">{formatTimestamp(artifact.timestamp)}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFullscreen(true)}
+                className="border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600"
+                disabled={isStreaming}
+              >
+                <Maximize2 className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex space-x-1">
+            <Button
+              variant={artifactViewMode === 'view' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setArtifactViewMode('view')}
+              className={artifactViewMode === 'view'
+                ? 'bg-purple-600 hover:bg-purple-700'
+                : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }
+              disabled={isStreaming}
+            >
+              <Eye className="mr-1 h-3 w-3" />
+              View
+            </Button>
+            <Button
+              variant={artifactViewMode === 'code' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setArtifactViewMode('code')}
+              className={artifactViewMode === 'code'
+                ? 'bg-purple-600 hover:bg-purple-700'
+                : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }
+            >
+              <Code className="mr-1 h-3 w-3" />
+              Code {isStreaming && <span className="ml-1 text-xs">●</span>}
+            </Button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-hidden">
+          {artifactViewMode === 'view' && !isStreaming ? (
+            <iframe
+              srcDoc={displayContent}
+              title={artifact.name}
+              className="w-full h-full border-none bg-white"
+              sandbox="allow-scripts"
+            />
+          ) : (
+            <div className="h-full overflow-auto bg-gray-900 p-4">
+              <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
+                {displayContent}
+                {isStreaming && <span className="animate-pulse">|</span>}
+              </pre>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const renderArtifactBlock = (artifactId: string): JSX.Element => {
+    const artifact = artifacts.find(a => a.id === artifactId)
+    if (!artifact) return <span className="text-gray-500">Artifact not found</span>
+
+    return (
+      <div
+        className="my-3 p-4 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg cursor-pointer hover:border-purple-400/50 transition-colors"
+        onClick={() => {
+          setCurrentDisplayResult(artifact)
+          setGeneratedHtml(artifact.content)
+        }}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+            <Sparkles className="h-6 w-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-white font-medium">{artifact.name}</h3>
+            <p className="text-gray-400 text-sm">Click to open website</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderMessageContent = (message: MessageType): JSX.Element => {
+    // Check if this message contains an artifact placeholder
+    if (message.artifactId) {
+      // Split content by artifact placeholder and render the artifact block
+      const parts = message.content.split(/\[Artifact (?:generated|streaming) - view in right panel\]/)
+
+      return (
+        <div>
+          {parts.map((part, index) => (
+            <div key={index}>
+              {part && <MarkdownRenderer content={part} />}
+              {index < parts.length - 1 && renderArtifactBlock(message.artifactId!)}
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    // Regular message content
+    return <MarkdownRenderer content={message.content} />
   }
 
   return (
@@ -826,14 +1098,11 @@ export default function AgentPage() {
                 )}
                 {message.role === "assistant" && (
                   <div className="flex items-start">
-                    <div className="rounded-lg rounded-tl-none bg-gray-800 p-3">
-                      <p>{message.content}</p>
-                      {/* Debug info - remove this later */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <small className="text-xs text-gray-500 mt-1 block">
-                          ID: {message.id}, Length: {message.content?.length || 0}
-                        </small>
-                      )}
+                    <div
+                      className="rounded-lg rounded-tl-none bg-gray-800 p-3 cursor-pointer hover:bg-gray-700 transition-colors"
+                      onClick={() => handleMessageClick(message)}
+                    >
+                      {renderMessageContent(message)}
                     </div>
                   </div>
                 )}
@@ -848,22 +1117,19 @@ export default function AgentPage() {
                   </div>
                 )}
                 {message.role === "tool" && (
-                  <div className="flex items-start">
-                    <div className="rounded-lg rounded-tl-none bg-gray-900 p-3 text-gray-400">
-                      <p className="mb-1 text-xs font-semibold uppercase text-gray-500">{message.toolName}</p>
-                      <p className="flex items-center">
-                        <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
-                        {message.content}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {message.role === "tool-result" && (
-                  <div className="flex items-start">
-                    <div className="rounded-lg rounded-tl-none bg-gray-900 p-3 text-gray-400">
-                      <p className="mb-1 text-xs font-semibold uppercase text-gray-500">{message.toolName} result</p>
-                      <p>{message.content}</p>
-                    </div>
+                  <div className="flex items-center text-sm text-gray-400 py-1">
+                    <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    <span className="mr-1">{getToolActionText(message.toolName || '')}</span>
+                    {message.toolResultId ? (
+                      <button
+                        onClick={() => handleMessageClick(message)}
+                        className="text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                      >
+                        {getToolDisplayContent(message.toolName || '', message.content)}
+                      </button>
+                    ) : (
+                      <span className="text-gray-300">{getToolDisplayContent(message.toolName || '', message.content)}</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -889,26 +1155,168 @@ export default function AgentPage() {
         </div>
       </div>
 
-      {/* Right side - Content Display */}
-      <div className="h-full w-full overflow-auto bg-gray-950 md:w-1/2">
-        {generatedHtml ? (
-          <iframe
-            srcDoc={generatedHtml}
-            title="Generated Content"
-            className="h-full w-full border-none"
-            sandbox="allow-scripts"
-          />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center p-8 text-center text-gray-500">
-            <div className="mb-6 h-32 w-32 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 opacity-20"></div>
-            <h2 className="mb-2 text-2xl font-bold">No Useless Content Yet</h2>
-            <p className="max-w-md">
-              Ask Wanus to generate something, and this space will be filled with a visually impressive but completely
-              pointless artifact.
-            </p>
+      {/* Right side - AI Operation Screen */}
+      <div className="h-full w-full overflow-hidden bg-gray-950 md:w-1/2 flex flex-col">
+        {/* Header with dropdown */}
+        <div className="border-b border-gray-800 p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">AI Operation Screen</h2>
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700"
+              >
+                History <ChevronDown className="ml-1 h-4 w-4" />
+              </Button>
+              {showDropdown && (
+                <div className="absolute right-0 top-full z-10 mt-1 w-64 rounded-lg border border-gray-600 bg-gray-800 py-1 shadow-lg">
+                  {/* Tool Results */}
+                  {toolResults.length > 0 && (
+                    <>
+                      <div className="px-3 py-2 text-xs font-semibold uppercase text-gray-400">Tool Results</div>
+                      {toolResults.map((result) => (
+                        <button
+                          key={result.id}
+                          className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-700"
+                          onClick={() => {
+                            setCurrentDisplayResult(result)
+                            setShowDropdown(false)
+                          }}
+                        >
+                          <Clock className="mr-2 h-3 w-3 text-gray-400" />
+                          <span className="truncate">{result.displayName}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Artifacts */}
+                  {artifacts.length > 0 && (
+                    <>
+                      <div className="px-3 py-2 text-xs font-semibold uppercase text-gray-400 border-t border-gray-700 mt-1">Artifacts</div>
+                      {artifacts.map((artifact) => (
+                        <button
+                          key={artifact.id}
+                          className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-700"
+                          onClick={() => {
+                            setCurrentDisplayResult(artifact)
+                            setGeneratedHtml(artifact.content)
+                            setShowDropdown(false)
+                          }}
+                        >
+                          <Sparkles className="mr-2 h-3 w-3 text-purple-400" />
+                          <span className="truncate">{artifact.name}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {toolResults.length === 0 && artifacts.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-500">No results yet</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Content Display */}
+        <div className="flex-1 overflow-auto">
+          {currentDisplayResult ? (
+            'content' in currentDisplayResult ? (
+              // This is an artifact
+              renderArtifact(currentDisplayResult)
+            ) : (
+              // This is a tool result
+              <div className="p-4">
+                {renderToolResult(currentDisplayResult)}
+              </div>
+            )
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center p-8 text-center text-gray-500">
+              <div className="mb-6 h-32 w-32 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 opacity-20"></div>
+              <h2 className="mb-2 text-2xl font-bold">AI Operation Screen</h2>
+              <p className="max-w-md">
+                Tool results and artifacts will appear here in real-time as Wanus executes its beautifully useless operations.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Fullscreen Modal */}
+      {isFullscreen && currentDisplayResult && 'content' in currentDisplayResult && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex flex-col">
+          {/* Fullscreen Header */}
+          <div className="border-b border-gray-700 p-4 bg-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <h3 className="text-xl font-semibold text-white">{currentDisplayResult.name}</h3>
+                <span className="text-sm text-gray-400">{formatTimestamp(currentDisplayResult.timestamp)}</span>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {/* Tabs in fullscreen */}
+                <div className="flex space-x-1 mr-4">
+                  <Button
+                    variant={artifactViewMode === 'view' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setArtifactViewMode('view')}
+                    className={artifactViewMode === 'view'
+                      ? 'bg-purple-600 hover:bg-purple-700'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }
+                  >
+                    <Eye className="mr-1 h-3 w-3" />
+                    View
+                  </Button>
+                  <Button
+                    variant={artifactViewMode === 'code' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setArtifactViewMode('code')}
+                    className={artifactViewMode === 'code'
+                      ? 'bg-purple-600 hover:bg-purple-700'
+                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }
+                  >
+                    <Code className="mr-1 h-3 w-3" />
+                    Code
+                  </Button>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFullscreen(false)}
+                  className="border-gray-600 bg-gray-700 text-gray-300 hover:bg-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Fullscreen Content */}
+          <div className="flex-1 overflow-hidden">
+            {artifactViewMode === 'view' ? (
+              <iframe
+                srcDoc={currentDisplayResult.content}
+                title={currentDisplayResult.name}
+                className="w-full h-full border-none bg-white"
+                sandbox="allow-scripts"
+              />
+            ) : (
+              <div className="h-full overflow-auto bg-gray-900 p-6">
+                <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
+                  {currentDisplayResult.content}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
