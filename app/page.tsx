@@ -1,3 +1,4 @@
+import { Navigation } from "@/components/nav"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Coffee, FileBarChart, PieChart, Play } from "lucide-react"
 import Image from "next/image"
@@ -7,33 +8,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-beige text-gray-700 font-sans">
       {/* Navigation */}
-      <nav className="border-b border-gray-300 bg-white">
-        <div className="container mx-auto flex items-center justify-between p-4">
-          <div className="flex items-center">
-            <Image
-              src="/wanus_logo.png"
-              alt="Wanus Logo"
-              width={32}
-              height={32}
-              className="mr-2 h-8 w-8"
-            />
-            <span className="font-serif text-xl font-medium tracking-tight">WANUS</span>
-          </div>
-          <div className="hidden space-x-1 md:flex">
-            {["Solutions", "Enterprise", "Resources", "About", "Contact"].map((item) => (
-              <button
-                key={item}
-                className="rounded-sm px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <Button variant="outline" className="hidden bg-white border-gray-300 text-sm hover:text-gray-800 md:inline-flex">
-            Request Demo
-          </Button>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Hero Section */}
       <header className="border-b border-gray-300 bg-white py-20">
@@ -41,7 +16,6 @@ export default function LandingPage() {
           <div className="mb-6 inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
             NEW RELEASE v0.6.9
           </div>
-
 
           {/* Logo moved to be inline with title */}
           <div className=" flex flex-col items-center">
@@ -57,7 +31,6 @@ export default function LandingPage() {
                 <span className="text-taupe">WANUS</span>: World's first truly useless AI Agent
               </h1>
             </div>
-
           </div>
 
           <h2 className="font-serif text-2xl font-medium tracking-tight text-gray-600 mt-4 md:text-3xl">
@@ -68,7 +41,7 @@ export default function LandingPage() {
 
           <p className="mx-auto mt-6 max-w-2xl text-xl text-gray-500">
             The world's first AI agent meticulously engineered to produce visually impressive yet completely pointless
-            results with enterprise-grade reliability. (Same as all other AI products, our logo looks like an arse)
+            results with enterprise-grade reliability. (Like all the other AI products, our logo looks like an arse too)
           </p>
           <div className="mt-10 flex flex-col items-center justify-center space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
             <Link href="/agent">
@@ -76,13 +49,15 @@ export default function LandingPage() {
                 Experience Uselessness <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
-            <Button
-              variant="outline"
-              size="lg"
-              className="w-full bg-white border-gray-300 text-gray-700 hover:bg-gray-100 hover:text-gray-800 sm:w-auto"
-            >
-              Read Whitepaper
-            </Button>
+            <Link href="/whitepaper">
+              <Button
+                variant="outline"
+                size="lg"
+                className="w-full bg-white border-gray-300 text-gray-700 hover:bg-gray-100 hover:text-gray-800 sm:w-auto"
+              >
+                Read Whitepaper
+              </Button>
+            </Link>
           </div>
 
           {/* Fake Video Player */}
@@ -200,7 +175,13 @@ export default function LandingPage() {
                 will read, which is all that I have been doing since I graduated, but this time with unprecedented efficiency."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/sarah_johnson.png"
+                  alt="Sarah Johnson"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Sarah Johnson</p>
                   <p className="text-sm text-gray-500">VP of Unnecessary Initiatives</p>
@@ -213,7 +194,13 @@ export default function LandingPage() {
                 our quarterly meetings."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/michael_chen.png"
+                  alt="Michael Chen"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Michael Chen</p>
                   <p className="text-sm text-gray-500">Director of Strategic Ambiguity</p>
@@ -225,10 +212,16 @@ export default function LandingPage() {
                 "Finally, a tool that matches our quarterly performance. WANUS generates exactly zero value, which is precisely what our last three initiatives delivered, but now we can visualize it beautifully."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/david_park.png"
+                  alt="David Park"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">David Park</p>
-                  <p className="text-sm text-gray-500">Chief Innovation Officer</p>
+                  <p className="text-sm text-gray-500">Chief Innovation Officer (Unverified Claims)</p>
                 </div>
               </div>
             </div>
@@ -237,10 +230,16 @@ export default function LandingPage() {
                 "Our team loved WANUS so much, we allocated 40% of our AI budget to it. The other 60% went to equally useless tools, so it fits perfectly."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/roberto_martinez.png"
+                  alt="Roberto Martinez"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Roberto Martinez</p>
-                  <p className="text-sm text-gray-500">VP of Digital Transformation</p>
+                  <p className="text-sm text-gray-500">VP of Digital Disappointment</p>
                 </div>
               </div>
             </div>
@@ -249,7 +248,13 @@ export default function LandingPage() {
                 "I published three papers using WANUS-generated data visualization. The peer reviewers were impressed by graphs that plotted the correlation between my lunch choices and global GDP."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/dr_marcus_weber.png"
+                  alt="Dr. Marcus Weber"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Dr. Marcus Weber</p>
                   <p className="text-sm text-gray-500">Assistant Professor of Applied Nonsense</p>
@@ -261,10 +266,16 @@ export default function LandingPage() {
                 "My manager asked me to 'think outside the box.' WANUS helped me realize the box doesn't exist, and neither do my contributions to this company."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/sarah_kim.png"
+                  alt="Sarah Kim"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Sarah Kim</p>
-                  <p className="text-sm text-gray-500">Business Analyst</p>
+                  <p className="text-sm text-gray-500">Senior Specialist of Professional Confusion</p>
                 </div>
               </div>
             </div>
@@ -273,10 +284,16 @@ export default function LandingPage() {
                 "WANUS is the only AI tool that honestly represents my work output. Finally, transparency in tech!"
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/mike_rodriguez.png"
+                  alt="Mike Rodriguez"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Mike Rodriguez</p>
-                  <p className="text-sm text-gray-500">Product Manager</p>
+                  <p className="text-sm text-gray-500">Product Manager of Theoretical Features</p>
                 </div>
               </div>
             </div>
@@ -285,10 +302,16 @@ export default function LandingPage() {
                 "I used WANUS to plan my European vacation. It created a beautiful 12-day itinerary visiting museums that don't exist in cities I can't pronounce. My Instagram stories have never looked more cultured."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/maya_patel.png"
+                  alt="Maya Patel"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Maya Patel</p>
-                  <p className="text-sm text-gray-500">Travel Blogger</p>
+                  <p className="text-sm text-gray-500">Influencer of Imaginary Experiences</p>
                 </div>
               </div>
             </div>
@@ -297,10 +320,16 @@ export default function LandingPage() {
                 "WANUS revolutionized my meal prep. It generates weekly recipes using ingredients I don't have to make dishes I've never heard of. I've lost 15 pounds from confusion alone."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/chris_johnson.png"
+                  alt="Chris Johnson"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Chris Johnson</p>
-                  <p className="text-sm text-gray-500">Home Cook</p>
+                  <p className="text-sm text-gray-500">Culinary Explorer of Non-Existent Cuisines</p>
                 </div>
               </div>
             </div>
@@ -309,10 +338,16 @@ export default function LandingPage() {
                 "My dating profile was getting no matches until WANUS optimized it. Now I'm attracting people who appreciate my hobby of 'collecting vintage air' and my passion for 'interpretive spreadsheet dancing.'"
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/taylor_smith.png"
+                  alt="Taylor Smith"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Taylor Smith</p>
-                  <p className="text-sm text-gray-500">Single Professional</p>
+                  <p className="text-sm text-gray-500">Professional Romantic Optimist</p>
                 </div>
               </div>
             </div>
@@ -321,10 +356,16 @@ export default function LandingPage() {
                 "WANUS helped me organize my closet by categorizing my clothes based on their 'emotional wavelength.' My wardrobe has never been more scientifically meaningless."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/olivia_martinez.png"
+                  alt="Olivia Martinez"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Olivia Martinez</p>
-                  <p className="text-sm text-gray-500">Fashion Enthusiast</p>
+                  <p className="text-sm text-gray-500">Wardrobe Physicist & Textile Theorist</p>
                 </div>
               </div>
             </div>
@@ -333,10 +374,16 @@ export default function LandingPage() {
                 "I asked WANUS to create a workout routine. It suggested 45 minutes of 'mindful keyboard typing' followed by 'aggressive email breathing exercises.' I've never felt more professionally fit."
               </p>
               <div className="flex items-center">
-                <div className="mr-3 h-10 w-10 rounded-full bg-gray-300"></div>
+                <Image
+                  src="/profiles/jake_wilson.png"
+                  alt="Jake Wilson"
+                  width={40}
+                  height={40}
+                  className="mr-3 h-10 w-10 rounded-full object-cover"
+                />
                 <div>
                   <p className="font-medium text-gray-800">Jake Wilson</p>
-                  <p className="text-sm text-gray-500">Fitness Novice</p>
+                  <p className="text-sm text-gray-500">Wellness Coordinator of Office Athletics</p>
                 </div>
               </div>
             </div>
