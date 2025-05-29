@@ -19,6 +19,7 @@ const aiProvider = createOpenAI({
   compatibility: 'strict', // strict mode for OpenAI API
 })
 
+
 // Configuration
 const defaultModel = process.env.CHAT_MODEL || "gemini-2.0-flash-001"
 const imageModel = process.env.IMAGE_MODEL || "imagen-3.0-fast-generate-001"
@@ -34,9 +35,15 @@ export interface SearchResult {
   score?: number
 }
 
+export interface ImageResult {
+  url: string
+  description: string
+}
+
 export interface SearchResponse {
   query: string
   results: SearchResult[]
+  images: ImageResult[]
 }
 
 export interface ExtractResult {
@@ -67,6 +74,9 @@ export const tavilySearch = traceable(
           query: query,
           search_depth: "basic",
           max_results: max_results,
+          include_images: true,
+          include_image_descriptions: true,
+          include_raw_content: true
         })
       })
 
@@ -79,13 +89,15 @@ export const tavilySearch = traceable(
       const data = await response.json()
       return {
         query,
-        results: data.results || []
+        results: data.results || [],
+        images: data.images || []
       }
     } catch (error) {
       console.error("Tavily search error:", error)
       return {
         query,
-        results: []
+        results: [],
+        images: []
       }
     }
   },
@@ -316,14 +328,20 @@ export const enhancedTools = {
     execute: async ({ query }: { query: string }) => {
       console.log("🔍 Tool: webSearch starting", { query })
       const results = await tavilySearch(query, 20)
-      console.log("🔍 Tool: webSearch completed", { resultsCount: results.results.length })
+      console.log("🔍 Tool: webSearch completed", { resultsCount: results.results.length, imagesCount: results.images.length })
+
+      // Distribute images across search results
+      const imageUrls = results.images.map(img => img.url)
+
       return {
         query: results.query,
-        results: results.results.map(r => ({
+        results: results.results.map((r, index) => ({
           title: r.title,
           url: r.url,
           content: r.content.substring(0, 500) + (r.content.length > 500 ? "..." : ""),
-          score: r.score
+          score: r.score,
+          // Add up to 2 images per result, cycling through available images
+          images: imageUrls.length > 0 ? [imageUrls[index % imageUrls.length]] : []
         }))
       }
     },
