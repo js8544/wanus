@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Cpu, Download, FileBarChart, PieChart, Share2, Zap } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
 
 export default function WhitepaperPage() {
@@ -11,8 +12,13 @@ export default function WhitepaperPage() {
           <div className="flex items-center">
             <Link href="/">
               <div className="flex items-center">
-                <div className="mr-2 h-8 w-8 rounded-sm bg-taupe"></div>
-                <span className="font-serif text-xl font-medium tracking-tight">WANUS</span>
+                <Image
+                  src="/wanus_logo.png"
+                  alt="Wanus Logo"
+                  width={32}
+                  height={32}
+                  className="mr-2 h-8 w-8"
+                />                <span className="font-serif text-xl font-medium tracking-tight">WANUS</span>
               </div>
             </Link>
           </div>
@@ -33,13 +39,13 @@ export default function WhitepaperPage() {
       <header className="border-b border-gray-300 bg-white py-16">
         <div className="container mx-auto px-4 text-center">
           <div className="mb-6 inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-            OFFICIAL WHITEPAPER v1.0.0
+            OFFICIAL WHITEPAPER v0.6.9
           </div>
           <h1 className="font-serif text-4xl font-medium tracking-tight text-gray-800 md:text-5xl">
-            WANUS: The Art of Perfect Uselessness
+            WANUS: The Art of Perfect Uselessness and Meaninglessness
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-xl text-gray-500">
-            A Comprehensive Analysis of AI Agent With Absolutely No Usage Scenarios
+            A Comprehensive Analysis of AI Agent <span className="text-taupe">W</span>ith <span className="text-taupe">A</span>bsolutely <span className="text-taupe">N</span>o <span className="text-taupe">U</span>sage <span className="text-taupe">S</span>cenarios
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-sm text-gray-500">
             <span className="flex items-center rounded-full bg-gray-100 px-3 py-1">
@@ -62,7 +68,7 @@ export default function WhitepaperPage() {
       <div className="border-b border-gray-300 bg-white py-8">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-4xl">
-            <h2 className="mb-4 font-serif text-xl font-medium text-gray-800">Table of Contents</h2>
+            <h2 className="mb-4 font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Table of Contents</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <ol className="list-inside list-decimal space-y-2 text-gray-600">
@@ -82,6 +88,11 @@ export default function WhitepaperPage() {
                     </a>
                   </li>
                   <li className="flex items-center">
+                    <a href="#utility" className="hover:text-taupe">
+                      Acknowledging Genuine AI Utility
+                    </a>
+                  </li>
+                  <li className="flex items-center">
                     <a href="#target" className="hover:text-taupe">
                       Target Audience: The Disillusioned Technologist
                     </a>
@@ -89,7 +100,7 @@ export default function WhitepaperPage() {
                 </ol>
               </div>
               <div>
-                <ol className="list-inside list-decimal space-y-2 text-gray-600" start={5}>
+                <ol className="list-inside list-decimal space-y-2 text-gray-600" start={6}>
                   <li className="flex items-center">
                     <a href="#capabilities" className="hover:text-taupe">
                       Core Capabilities: Engineered Pointlessness
@@ -146,11 +157,9 @@ export default function WhitepaperPage() {
                 </p>
                 <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
                   <blockquote className="border-l-4 border-taupe pl-4 italic text-gray-700">
-                    "The true measure of an AI's impact may not be in its ability to solve problems, but in its capacity
+                    "The true measure of an AI's impact is not only in its ability to solve problems, but in its capacity
                     to create moments of surprise, delight, and unexpected discovery."
-                    <footer className="mt-2 text-right text-sm text-gray-500">
-                      — Dr. Ironica Paradox, Chief Uselessness Officer
-                    </footer>
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
                   </blockquote>
                 </div>
                 <p>
@@ -169,14 +178,14 @@ export default function WhitepaperPage() {
                 2. Mission & Vision: Embracing Futility
               </h2>
               <div className="prose prose-gray max-w-none">
-                <h3 className="font-serif text-xl font-medium text-gray-800">2.1 Mission Statement</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">2.1 Mission Statement</h3>
                 <p>
                   WANUS aims to explore the untapped potential of "uselessness" as a feature rather than a bug. By
                   creating AI that prioritizes surprise, delight, and unexpected experiences over conventional utility,
                   we seek to demonstrate that the future of AI may lie not just in solving problems, but in creating
                   experiences users don't even know they want.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">2.2 Vision</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">2.2 Vision</h3>
                 <p>
                   WANUS aspires to pioneer a new category of AI that embraces the same principles that made platforms
                   like TikTok and Instagram wildly successful: the element of surprise, the joy of discovery, and the
@@ -224,14 +233,14 @@ export default function WhitepaperPage() {
                   embraces uselessness as a response to the sometimes absurd claims and expectations surrounding AI
                   technology.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">3.1 Embracing the Absurd</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">3.1 Embracing the Absurd</h3>
                 <p>
                   WANUS deliberately inverts the traditional value proposition of AI systems. While conventional AI aims
                   to solve problems and create utility, WANUS meticulously avoids solving any actual problems while
                   maintaining the appearance of sophistication and purpose. This inversion creates a powerful satirical
                   lens through which to view the industry's sometimes exaggerated claims.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">
                   3.2 The Paradox of Engineered Uselessness
                 </h3>
                 <p>
@@ -239,7 +248,7 @@ export default function WhitepaperPage() {
                   something deliberately useless. This paradox mirrors the real-world phenomenon of over-engineered
                   solutions that fail to address genuine human needs despite their technical sophistication.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">3.3 The Value of Unpredictability</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">3.3 The Value of Unpredictability</h3>
                 <p>
                   A key insight driving WANUS is that humans are naturally drawn to unpredictable experiences. The most
                   engaging digital products don't tell users exactly what they'll get—they create systems where each
@@ -271,17 +280,167 @@ export default function WhitepaperPage() {
               </div>
             </section>
 
+            {/* Acknowledging Genuine AI Utility */}
+            <section id="utility" className="mb-16">
+              <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
+                4. Acknowledging Genuine AI Utility: A Balanced Perspective
+              </h2>
+              <div className="prose prose-gray max-w-none">
+                <p>
+                  While WANUS embraces deliberate uselessness as its core feature, it is crucial to acknowledge that AI
+                  agents are, in fact, remarkably useful tools that have already demonstrated significant practical
+                  value across numerous domains. This project itself serves as a testament to AI's genuine utility—the
+                  images, content, and even portions of this very whitepaper were created with the assistance of AI
+                  agents.
+                </p>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">
+                  4.1 Celebrating Practical AI Innovation
+                </h3>
+                <p>
+                  WANUS's critique is not directed at the technology itself or the dedicated teams building genuinely
+                  useful AI applications. Instead, we celebrate and honor those developers, researchers, and
+                  organizations who approach AI development with pragmatism, focusing on solving real problems and
+                  creating tangible value for users. These teams represent the best of what AI can achieve when
+                  developed thoughtfully and deployed responsibly.
+                </p>
+                <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
+                  <h4 className="mb-4 font-serif text-lg font-medium text-gray-800">
+                    Examples of Genuinely Useful AI Applications
+                  </h4>
+                  <ul className="space-y-3">
+                    <li className="flex items-start">
+                      <span className="mr-3 mt-1 h-2 w-2 rounded-full bg-taupe flex-shrink-0"></span>
+                      <div>
+                        <strong>Content Creation Tools:</strong> AI assistants that help writers, designers, and
+                        creators enhance their work while maintaining human creativity and oversight.
+                      </div>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-3 mt-1 h-2 w-2 rounded-full bg-taupe flex-shrink-0"></span>
+                      <div>
+                        <strong>Medical Diagnostics:</strong> AI systems that assist healthcare professionals in
+                        identifying diseases and conditions with greater accuracy and speed.
+                      </div>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-3 mt-1 h-2 w-2 rounded-full bg-taupe flex-shrink-0"></span>
+                      <div>
+                        <strong>Accessibility Tools:</strong> AI-powered applications that help individuals with
+                        disabilities navigate digital and physical environments more effectively.
+                      </div>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-3 mt-1 h-2 w-2 rounded-full bg-taupe flex-shrink-0"></span>
+                      <div>
+                        <strong>Educational Assistance:</strong> AI tutors and learning platforms that provide
+                        personalized education experiences tailored to individual learning styles and needs.
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">
+                  4.2 The Target of Our Critique: Hype Culture
+                </h3>
+                <p>
+                  WANUS's satirical lens is specifically focused on the culture of exaggerated claims, unrealistic
+                  promises, and marketing hyperbole that often surrounds AI technology. Our critique targets:
+                </p>
+                <ul>
+                  <li>
+                    <strong>Capital Market Hype:</strong> The tendency of investors and venture capital to inflate AI
+                    capabilities and market potential beyond realistic bounds, creating unsustainable expectations and
+                    valuations.
+                  </li>
+                  <li>
+                    <strong>Media Sensationalism:</strong> The propensity of media outlets to present AI developments in
+                    apocalyptic or utopian terms, often misrepresenting the actual capabilities and limitations of
+                    current technology.
+                  </li>
+                  <li>
+                    <strong>Marketing Overreach:</strong> Companies that rebrand conventional software as "AI-powered"
+                    without meaningful intelligence, or that promise revolutionary capabilities that their products
+                    cannot deliver.
+                  </li>
+                  <li>
+                    <strong>Technological Solutionism:</strong> The belief that AI can solve all problems, regardless of
+                    whether those problems are fundamentally technical in nature or require human judgment, empathy, and
+                    social solutions.
+                  </li>
+                </ul>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">
+                  4.3 A Meta-Commentary on Our Own Process
+                </h3>
+                <p>
+                  The creation of WANUS itself demonstrates the genuine utility of AI tools. Throughout this project's
+                  development, we leveraged AI agents for image generation, content creation, code assistance, and
+                  design iteration. These tools enhanced our productivity and creative capabilities without replacing
+                  human judgment and oversight. This experience reinforces our belief that AI's greatest value lies in
+                  augmenting human capabilities rather than replacing them entirely.
+                </p>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">4.4 Testing AI's Creative Dimensions</h3>
+                <p>
+                  WANUS serves as an experimental platform to test dimensions of AI capabilities that are often
+                  overlooked in conventional evaluations. While most AI benchmarks focus on technical problem-solving,
+                  logical reasoning, and factual accuracy, our project deliberately explores AI's capacity for:
+                </p>
+                <ul>
+                  <li>
+                    <strong>Imagination:</strong> Can AI systems conceptualize and generate content that goes beyond
+                    straightforward problem-solving? The deliberately absurd premise of WANUS challenges AI to think
+                    beyond utilitarian frameworks.
+                  </li>
+                  <li>
+                    <strong>Creativity:</strong> Rather than evaluating AI on its ability to find the "correct" answer,
+                    WANUS examines AI's capacity to generate novel, unexpected, and delightful outputs that surprise
+                    even its creators.
+                  </li>
+                  <li>
+                    <strong>Taste and Aesthetic Judgment:</strong> WANUS tests whether AI can develop and apply
+                    aesthetic sensibilities that resonate with human audiences, even when freed from practical
+                    constraints.
+                  </li>
+                </ul>
+                <p>
+                  These dimensions are increasingly important as AI systems move beyond narrow technical applications
+                  into domains traditionally associated with human creativity and cultural production. By creating a
+                  project that prioritizes these qualities over conventional utility, we gain insights into AI
+                  capabilities that might otherwise remain unexplored.
+                </p>
+                <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
+                  <blockquote className="border-l-4 border-taupe pl-4 italic text-gray-700">
+                    "The true test of artificial intelligence isn't just whether it can solve our problems, but whether
+                    it can surprise us, delight us, and show glimmers of what we might call imagination or taste. WANUS
+                    deliberately creates a space where these qualities can emerge and be observed."
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
+                  </blockquote>
+                </div>
+                <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
+                  <blockquote className="border-l-4 border-taupe pl-4 italic text-gray-700">
+                    "The most valuable AI applications are those that make humans more capable, creative, and
+                    productive—not those that promise to make humans obsolete."
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
+                  </blockquote>
+                </div>
+                <p>
+                  By acknowledging AI's genuine utility while satirizing its hype culture, WANUS occupies a unique
+                  position in the discourse around artificial intelligence. We advocate for a more grounded, realistic
+                  approach to AI development and deployment—one that celebrates genuine achievements while remaining
+                  skeptical of grandiose claims and unrealistic promises.
+                </p>
+              </div>
+            </section>
+
             {/* Target Audience */}
             <section id="target" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                4. Target Audience: The Disillusioned Technologist
+                5. Target Audience: The Disillusioned Technologist
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
                   While WANUS presents itself as a product with no practical use cases, its meta-purpose as a satirical
                   commentary is directed at specific audiences who may find value in its critique.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">4.1 Primary Audience Segments</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">5.1 Primary Audience Segments</h3>
                 <ul>
                   <li>
                     <strong>Technology Professionals</strong>: Those who have grown weary of the hyperbolic claims and
@@ -334,7 +493,7 @@ export default function WhitepaperPage() {
             {/* Core Capabilities */}
             <section id="capabilities" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                5. Core Capabilities: Engineered Pointlessness
+                6. Core Capabilities: Engineered Pointlessness
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
@@ -346,7 +505,7 @@ export default function WhitepaperPage() {
                   <div className="rounded-sm border border-gray-300 bg-white p-6">
                     <div className="mb-4 flex items-center">
                       <FileBarChart className="mr-3 h-6 w-6 text-taupe" />
-                      <h3 className="font-serif text-xl font-medium text-gray-800">Meaningless Analytics</h3>
+                      <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Meaningless Analytics</h3>
                     </div>
                     <p className="text-gray-600">
                       WANUS generates visually impressive charts and graphs that appear to convey significant insights
@@ -357,7 +516,7 @@ export default function WhitepaperPage() {
                   <div className="rounded-sm border border-gray-300 bg-white p-6">
                     <div className="mb-4 flex items-center">
                       <Zap className="mr-3 h-6 w-6 text-taupe" />
-                      <h3 className="font-serif text-xl font-medium text-gray-800">Strategic Verbosity</h3>
+                      <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Strategic Verbosity</h3>
                     </div>
                     <p className="text-gray-600">
                       Using advanced language models, WANUS produces text that mimics corporate and technical
@@ -368,7 +527,7 @@ export default function WhitepaperPage() {
                   <div className="rounded-sm border border-gray-300 bg-white p-6">
                     <div className="mb-4 flex items-center">
                       <Cpu className="mr-3 h-6 w-6 text-taupe" />
-                      <h3 className="font-serif text-xl font-medium text-gray-800">Complexity Generation</h3>
+                      <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Complexity Generation</h3>
                     </div>
                     <p className="text-gray-600">
                       WANUS excels at transforming simple concepts into unnecessarily complex frameworks, methodologies,
@@ -379,7 +538,7 @@ export default function WhitepaperPage() {
                   <div className="rounded-sm border border-gray-300 bg-white p-6">
                     <div className="mb-4 flex items-center">
                       <PieChart className="mr-3 h-6 w-6 text-taupe" />
-                      <h3 className="font-serif text-xl font-medium text-gray-800">Aesthetic Optimization</h3>
+                      <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Aesthetic Optimization</h3>
                     </div>
                     <p className="text-gray-600">
                       Through sophisticated design algorithms, WANUS creates visually stunning outputs that prioritize
@@ -399,22 +558,22 @@ export default function WhitepaperPage() {
             {/* Impact Analysis */}
             <section id="impact" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                6. Impact Analysis: The Mirror Effect
+                7. Impact Analysis: The Mirror Effect
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
                   While WANUS is designed to be useless in conventional terms, its meta-purpose as a satirical
                   commentary has several potential impacts on how we think about and develop AI technologies.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">6.1 Reflection on Value Propositions</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">7.1 Reflection on Value Propositions</h3>
                 <p>
                   By deliberately creating an AI with no practical utility, WANUS encourages technologists to more
                   critically examine the actual value propositions of their own work. What genuine human needs are being
                   addressed? What real problems are being solved? These questions become more salient when contrasted
                   with WANUS's deliberate uselessness.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">
-                  6.2 Critique of Technological Solutionism
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">
+                  7.2 Critique of Technological Solutionism
                 </h3>
                 <p>
                   WANUS serves as a critique of the belief that every problem has a technological solution. By creating
@@ -465,7 +624,7 @@ export default function WhitepaperPage() {
                     </tbody>
                   </table>
                 </div>
-                <h3 className="font-serif text-xl font-medium text-gray-800">6.3 Humor as Critical Lens</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">7.3 Humor as Critical Lens</h3>
                 <p>
                   By employing satire and humor, WANUS creates a space for critical engagement with AI technology that
                   might be more accessible and less threatening than direct critique. This approach can broaden the
@@ -477,21 +636,21 @@ export default function WhitepaperPage() {
             {/* Future Directions */}
             <section id="future" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                7. Future Directions: Expanding Uselessness
+                8. Future Directions: Expanding Uselessness
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
                   While WANUS has already achieved unprecedented levels of uselessness, our research team continues to
                   explore new frontiers in the science of engineered futility.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">7.1 Uselessness at Scale</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">8.1 Uselessness at Scale</h3>
                 <p>
                   Future iterations of WANUS will explore how uselessness can be scaled across enterprise environments,
                   creating entire ecosystems of interconnected but ultimately pointless systems. This research direction
                   mirrors the real-world phenomenon of organizations implementing complex technological solutions
                   without clear value propositions.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800">7.2 Collaborative Uselessness</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">8.2 Collaborative Uselessness</h3>
                 <p>
                   We are investigating multi-agent systems where multiple instances of WANUS collaborate to achieve even
                   higher levels of collective uselessness than would be possible individually. This research direction
@@ -551,7 +710,7 @@ export default function WhitepaperPage() {
             {/* Conclusion */}
             <section id="conclusion" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                8. Conclusion: The Value of Valuelessness
+                9. Conclusion: The Value of Valuelessness
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
@@ -577,7 +736,7 @@ export default function WhitepaperPage() {
                   <blockquote className="border-l-4 border-taupe pl-4 italic text-gray-700">
                     "In a world obsessed with utility, the most revolutionary act may be the creation of something
                     deliberately, perfectly, and honestly useless."
-                    <footer className="mt-2 text-right text-sm text-gray-500">— The WANUS Research Collective</footer>
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
                   </blockquote>
                 </div>
                 <p>
@@ -623,7 +782,7 @@ export default function WhitepaperPage() {
 
             {/* Download and Share */}
             <div className="rounded-sm border border-gray-300 bg-white p-6 text-center">
-              <h3 className="mb-4 font-serif text-xl font-medium text-gray-800">Share this groundbreaking research</h3>
+              <h3 className="mb-4 font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Share this groundbreaking research</h3>
               <p className="mb-6 text-gray-600">
                 Help spread awareness about the importance of uselessness in the AI landscape.
               </p>
