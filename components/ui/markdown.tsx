@@ -44,7 +44,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           }
           return (
             <code
-              className="block bg-gray-100 text-black p-3 rounded-lg font-mono text-sm overflow-x-auto whitespace-pre"
+              className="block bg-gray-100 text-black p-3 rounded-lg font-mono text-sm overflow-x-auto whitespace-pre-wrap break-all"
               {...props}
             >
               {children}
@@ -53,7 +53,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
         },
         // Preformatted blocks
         pre: ({ children }) => (
-          <pre className="bg-gray-100 p-3 rounded-lg overflow-x-auto mb-3">
+          <pre className="bg-gray-100 p-3 rounded-lg overflow-x-auto mb-3 whitespace-pre-wrap">
             {children}
           </pre>
         ),

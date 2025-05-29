@@ -322,7 +322,7 @@ export default function WhitepaperPage() {
       <div className="border-b border-gray-300 bg-white py-8">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-4xl">
-            <h2 className="mb-4 font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Table of Contents</h2>
+            <h2 className="mb-4 font-serif text-xl font-medium text-gray-800 mt-4">Table of Contents</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <ol className="list-inside list-decimal space-y-2 text-gray-600">
