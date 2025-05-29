@@ -3,14 +3,194 @@
 import { ShareModal } from "@/components/ShareModal"
 import { Button } from "@/components/ui/button"
 import { useWhitepaperActions } from "@/hooks/useWhitepaperActions"
-import { Cpu, Download, FileBarChart, Loader2, PieChart, Share2, Zap } from "lucide-react"
+import * as d3 from "d3"
+import { Book, Cpu, Download, Drama, FileBarChart, Loader2, Palette, PieChart, Share2, Wrench, Zap } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 export default function WhitepaperPage() {
   const { downloadPdf, shareWhitepaper, shareToSocial, isGeneratingPdf, isSharing } = useWhitepaperActions()
   const [showShareModal, setShowShareModal] = useState(false)
+  const chartRef = useRef<SVGSVGElement>(null)
+
+  // Uselessness data for the chart
+  const uselessnessData = [
+    { task: "Email Composition", agentA: 12, agentB: 8, agentC: 15, wanus: 100 },
+    { task: "Data Analysis", agentA: 5, agentB: 7, agentC: 3, wanus: 100 },
+    { task: "Code Generation", agentA: 18, agentB: 22, agentC: 14, wanus: 100 },
+    { task: "Meeting Summary", agentA: 9, agentB: 11, agentC: 6, wanus: 100 },
+    { task: "Creative Writing", agentA: 25, agentB: 19, agentC: 21, wanus: 100 },
+    { task: "Strategic Planning", agentA: 31, agentB: 28, agentC: 35, wanus: 100 }
+  ]
+
+  type DataPoint = typeof uselessnessData[0]
+  type AgentKey = 'agentA' | 'agentB' | 'agentC' | 'wanus'
+
+  useEffect(() => {
+    if (!chartRef.current) return
+
+    // Clear previous chart
+    d3.select(chartRef.current).selectAll("*").remove()
+
+    const margin = { top: 40, right: 120, bottom: 80, left: 80 }
+    const width = 800 - margin.left - margin.right
+    const height = 500 - margin.top - margin.bottom
+
+    const svg = d3.select(chartRef.current)
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+
+    const g = svg.append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`)
+
+    // Define scales
+    const x0 = d3.scaleBand()
+      .domain(uselessnessData.map(d => d.task))
+      .range([0, width])
+      .padding(0.1)
+
+    const x1 = d3.scaleBand()
+      .domain(['agentA', 'agentB', 'agentC', 'wanus'])
+      .range([0, x0.bandwidth()])
+      .padding(0.05)
+
+    const y = d3.scaleLinear()
+      .domain([0, 100])
+      .range([height, 0])
+
+    // Color scheme
+    const colors: Record<AgentKey, string> = {
+      agentA: '#9CA3AF',
+      agentB: '#9CA3AF',
+      agentC: '#9CA3AF',
+      wanus: '#8B7355' // taupe color
+    }
+
+    // Create bars
+    const taskGroups = g.selectAll('.task-group')
+      .data(uselessnessData)
+      .enter().append('g')
+      .attr('class', 'task-group')
+      .attr('transform', (d: DataPoint) => `translate(${x0(d.task)},0)`)
+
+    // Add bars for each agent
+    const agents: AgentKey[] = ['agentA', 'agentB', 'agentC', 'wanus']
+    agents.forEach((agent: AgentKey) => {
+      taskGroups.append('rect')
+        .attr('x', x1(agent) || 0)
+        .attr('y', (d: DataPoint) => y(d[agent]))
+        .attr('width', x1.bandwidth())
+        .attr('height', (d: DataPoint) => height - y(d[agent]))
+        .attr('fill', colors[agent])
+        .attr('opacity', agent === 'wanus' ? 1 : 0.7)
+        .on('mouseover', function (event: MouseEvent, d: DataPoint) {
+          // Tooltip
+          const tooltip = d3.select('body').append('div')
+            .attr('class', 'tooltip')
+            .style('position', 'absolute')
+            .style('background', 'rgba(0,0,0,0.8)')
+            .style('color', 'white')
+            .style('padding', '8px')
+            .style('border-radius', '4px')
+            .style('font-size', '12px')
+            .style('pointer-events', 'none')
+            .style('opacity', 0)
+
+          tooltip.transition().duration(200).style('opacity', 1)
+          tooltip.html(`
+            <strong>${d.task}</strong><br/>
+            ${agent === 'wanus' ? 'WANUS' : agent.charAt(0).toUpperCase() + agent.slice(1)}: ${d[agent]}% useless<br/>
+            <em>${agent === 'wanus' ? '(engineered)' : '(accidental)'}</em>
+          `)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 10) + 'px')
+
+          // Highlight bar
+          d3.select(this as SVGRectElement).attr('opacity', 1)
+        })
+        .on('mouseout', function () {
+          d3.selectAll('.tooltip').remove()
+          d3.select(this as SVGRectElement).attr('opacity', agent === 'wanus' ? 1 : 0.7)
+        })
+    })
+
+    // Add x-axis
+    g.append('g')
+      .attr('transform', `translate(0,${height})`)
+      .call(d3.axisBottom(x0))
+      .selectAll('text')
+      .style('text-anchor', 'end')
+      .attr('dx', '-.8em')
+      .attr('dy', '.15em')
+      .attr('transform', 'rotate(-45)')
+      .style('font-size', '12px')
+
+    // Add y-axis
+    g.append('g')
+      .call(d3.axisLeft(y))
+      .style('font-size', '12px')
+
+    // Add y-axis label
+    g.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('y', 0 - margin.left)
+      .attr('x', 0 - (height / 2))
+      .attr('dy', '1em')
+      .style('text-anchor', 'middle')
+      .style('font-size', '14px')
+      .style('fill', '#6B7280')
+      .text('Uselessness Percentage (%)')
+
+    // Add legend
+    const legend = g.append('g')
+      .attr('transform', `translate(${width + 20}, 20)`)
+
+    const legendItems = [
+      { label: 'Agent A', color: colors.agentA, type: 'accidental' },
+      { label: 'Agent B', color: colors.agentB, type: 'accidental' },
+      { label: 'Agent C', color: colors.agentC, type: 'accidental' },
+      { label: 'WANUS', color: colors.wanus, type: 'engineered' }
+    ]
+
+    const legendGroups = legend.selectAll('.legend-item')
+      .data(legendItems)
+      .enter().append('g')
+      .attr('class', 'legend-item')
+      .attr('transform', (d, i) => `translate(0, ${i * 25})`)
+
+    legendGroups.append('rect')
+      .attr('width', 15)
+      .attr('height', 15)
+      .attr('fill', d => d.color)
+      .attr('opacity', d => d.label === 'WANUS' ? 1 : 0.7)
+
+    legendGroups.append('text')
+      .attr('x', 20)
+      .attr('y', 12)
+      .style('font-size', '12px')
+      .style('fill', '#374151')
+      .text(d => d.label)
+
+    legendGroups.append('text')
+      .attr('x', 20)
+      .attr('y', 25)
+      .style('font-size', '10px')
+      .style('fill', '#6B7280')
+      .style('font-style', 'italic')
+      .text(d => `(${d.type})`)
+
+    // Add title
+    g.append('text')
+      .attr('x', width / 2)
+      .attr('y', -10)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '16px')
+      .style('font-weight', '600')
+      .style('fill', '#374151')
+      .text('Uselessness Performance Across AI Tasks')
+
+  }, [])
 
   const handleShare = () => {
     // Try native sharing first, fallback to modal
@@ -99,6 +279,28 @@ export default function WhitepaperPage() {
           <p className="mx-auto mt-6 max-w-2xl text-xl text-gray-500">
             A Comprehensive Analysis of AI Agent <span className="text-taupe">W</span>ith <span className="text-taupe">A</span>bsolutely <span className="text-taupe">N</span>o <span className="text-taupe">U</span>sage <span className="text-taupe">S</span>cenarios
           </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            <a
+              href="https://www.wanus.im/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center rounded-full border border-taupe bg-white px-4 py-2 text-sm font-medium text-taupe hover:bg-taupe hover:text-white transition-colors"
+            >
+              <span className="mr-2">🌐</span>
+              wanus.im
+            </a>
+            <a
+              href="https://github.com/js8544/wanus"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+              </svg>
+              GitHub
+            </a>
+          </div>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-sm text-gray-500">
             <span className="flex items-center rounded-full bg-gray-100 px-3 py-1">
               <span className="mr-1 h-2 w-2 rounded-full bg-taupe"></span>
@@ -211,7 +413,7 @@ export default function WhitepaperPage() {
                   <blockquote className="border-l-4 border-taupe pl-4 italic text-gray-700">
                     "The true measure of an AI's impact is not only in its ability to solve problems, but in its capacity
                     to create moments of surprise, delight, and unexpected discovery."
-                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Wanus Team</footer>
                   </blockquote>
                 </div>
                 <p>
@@ -324,19 +526,53 @@ export default function WhitepaperPage() {
                   engaging experience that may ultimately prove more valuable than narrowly defined utility.
                 </p>
                 <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
-                  <div className="mb-4 text-center font-serif text-lg font-medium text-gray-800">
-                    The Uselessness Spectrum
+                  <div className="mb-6 text-center font-serif text-lg font-medium text-gray-800">
+                    The Uselessness Spectrum: Comparative Analysis
                   </div>
-                  <div className="relative h-12 w-full rounded-sm bg-gray-200">
+
+                  {/* Spectrum Bar */}
+                  <div className="relative h-12 w-full rounded-sm bg-gray-200 mb-6">
                     <div className="absolute left-0 top-0 h-full rounded-sm bg-taupe" style={{ width: "100%" }}></div>
                     <div className="absolute left-0 top-0 flex h-full w-full items-center justify-between px-4">
                       <span className="text-sm font-medium text-white">Accidental Uselessness</span>
                       <span className="text-sm font-medium text-white">Engineered Uselessness</span>
                     </div>
                   </div>
-                  <div className="mt-4 text-center text-sm text-gray-500">
-                    WANUS achieves 100% engineered uselessness, surpassing the industry standard of merely accidental
-                    uselessness.
+
+                  {/* Comparative Analysis Table */}
+                  <div className="mb-6">
+                    <h5 className="mb-4 font-medium text-gray-800">Uselessness Performance Across Common AI Tasks</h5>
+                    <div className="overflow-x-auto flex justify-center">
+                      <svg ref={chartRef} className="w-full max-w-4xl"></svg>
+                    </div>
+                  </div>
+
+                  {/* Performance Summary */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div className="rounded-sm border border-gray-200 bg-gray-50 p-3 text-center">
+                      <div className="text-lg font-bold text-gray-600">Agent A</div>
+                      <div className="text-sm text-gray-500">Avg: 16.7% useless</div>
+                      <div className="text-xs text-gray-400">Unintentional failures</div>
+                    </div>
+                    <div className="rounded-sm border border-gray-200 bg-gray-50 p-3 text-center">
+                      <div className="text-lg font-bold text-gray-600">Agent B</div>
+                      <div className="text-sm text-gray-500">Avg: 15.8% useless</div>
+                      <div className="text-xs text-gray-400">Unintentional failures</div>
+                    </div>
+                    <div className="rounded-sm border border-gray-200 bg-gray-50 p-3 text-center">
+                      <div className="text-lg font-bold text-gray-600">Agent C</div>
+                      <div className="text-sm text-gray-500">Avg: 15.7% useless</div>
+                      <div className="text-xs text-gray-400">Unintentional failures</div>
+                    </div>
+                    <div className="rounded-sm border border-taupe bg-taupe/10 p-3 text-center">
+                      <div className="text-lg font-bold text-taupe">WANUS</div>
+                      <div className="text-sm text-taupe">100% useless</div>
+                      <div className="text-xs text-taupe font-medium">Perfectly engineered</div>
+                    </div>
+                  </div>
+
+                  <div className="text-center text-sm text-gray-500">
+                    WANUS achieves 100% engineered uselessness across all tasks, surpassing the industry standard of merely accidental uselessness. While other agents accidentally fail at their intended purpose 15-17% of the time, WANUS successfully achieves its intended purpose of being completely useless 100% of the time.
                   </div>
                 </div>
               </div>
@@ -473,14 +709,14 @@ export default function WhitepaperPage() {
                     "The true test of artificial intelligence isn't just whether it can solve our problems, but whether
                     it can surprise us, delight us, and show glimmers of what we might call imagination or taste. WANUS
                     deliberately creates a space where these qualities can emerge and be observed."
-                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Wanus Team</footer>
                   </blockquote>
                 </div>
                 <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
                   <blockquote className="border-l-4 border-taupe pl-4 italic text-gray-700">
                     "The most valuable AI applications are those that make humans more capable, creative, and
                     productive—not those that promise to make humans obsolete."
-                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Wanus Team</footer>
                   </blockquote>
                 </div>
                 <p>
@@ -492,17 +728,132 @@ export default function WhitepaperPage() {
               </div>
             </section>
 
+            {/* Open Source Philosophy */}
+            <section id="opensource" className="mb-16">
+              <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
+                5. Open Source Philosophy: Democratizing Uselessness
+              </h2>
+              <div className="prose prose-gray max-w-none">
+                <p>
+                  In keeping with our commitment to transparent meaninglessness, WANUS embraces the open source philosophy
+                  as a natural extension of our core mission. By making our source code freely available, we enable the
+                  global community to study, modify, and contribute to the art of engineered uselessness.
+                </p>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">5.1 The Paradox of Open Source Uselessness</h3>
+                <p>
+                  There exists a beautiful irony in open-sourcing a deliberately useless system. While traditional open
+                  source projects aim to solve problems collaboratively, WANUS invites collaboration in the creation of
+                  sophisticated non-solutions. This inversion challenges conventional notions of what deserves community
+                  development effort and resources.
+                </p>
+                <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
+                  <h4 className="mb-4 font-serif text-lg font-medium text-gray-800">
+                    Open Source Contribution Opportunities
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="rounded-sm border border-gray-200 bg-beige p-4">
+                      <div className="flex items-center mb-2">
+                        <Palette className="h-4 w-4 text-taupe mr-2" />
+                        <h5 className="font-medium text-gray-800">Aesthetic Enhancements</h5>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Improve the visual appeal of meaningless outputs while maintaining their fundamental uselessness.
+                      </p>
+                    </div>
+                    <div className="rounded-sm border border-gray-200 bg-beige p-4">
+                      <div className="flex items-center mb-2">
+                        <Wrench className="h-4 w-4 text-taupe mr-2" />
+                        <h5 className="font-medium text-gray-800">Tool Development</h5>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Create new AI tools that achieve even higher levels of sophisticated pointlessness.
+                      </p>
+                    </div>
+                    <div className="rounded-sm border border-gray-200 bg-beige p-4">
+                      <div className="flex items-center mb-2">
+                        <Book className="h-4 w-4 text-taupe mr-2" />
+                        <h5 className="font-medium text-gray-800">Documentation</h5>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Help others understand and appreciate the nuances of deliberate technological futility.
+                      </p>
+                    </div>
+                    <div className="rounded-sm border border-gray-200 bg-beige p-4">
+                      <div className="flex items-center mb-2">
+                        <Drama className="h-4 w-4 text-taupe mr-2" />
+                        <h5 className="font-medium text-gray-800">Satirical Refinement</h5>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Enhance the project's commentary on AI industry trends and technological solutionism.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">5.2 Community-Driven Meaninglessness</h3>
+                <p>
+                  The open source nature of WANUS creates opportunities for a global community of contributors to
+                  collaborate on the refinement of uselessness. This collaborative approach to non-utility represents
+                  a unique experiment in collective artistic expression through technology.
+                </p>
+                <p>
+                  Contributors to WANUS are not merely improving code—they are participating in a shared exploration
+                  of what happens when engineering excellence is deliberately divorced from practical outcomes. This
+                  philosophical exercise has value beyond the immediate project, offering insights into the nature of
+                  technological development and human creativity.
+                </p>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">5.3 Transparency in Absurdity</h3>
+                <p>
+                  By making our approach completely transparent, WANUS serves as an educational resource for those
+                  interested in understanding both the technical aspects of AI development and the cultural critique
+                  embedded within our work. The open source codebase becomes a living document of our methodology.
+                </p>
+                <div className="my-8 rounded-sm border border-gray-300 bg-white p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">Explore the Source Code</h4>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Dive into the technical implementation of deliberate uselessness
+                      </p>
+                    </div>
+                    <a
+                      href="https://github.com/js8544/wanus"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center rounded-sm border border-taupe bg-taupe px-4 py-2 text-sm font-medium text-white hover:bg-taupe/90 transition-colors"
+                    >
+                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                      </svg>
+                      GitHub Repository
+                    </a>
+                  </div>
+                </div>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">5.4 The Ethics of Open Uselessness</h3>
+                <p>
+                  Making WANUS open source raises interesting questions about the responsibility that comes with
+                  sharing tools designed for non-productivity. We believe that transparency about our methods and
+                  intentions is essential, allowing others to understand both the technical implementation and the
+                  cultural commentary embedded within the project.
+                </p>
+                <p>
+                  The open source approach also ensures that WANUS cannot be co-opted or commercialized in ways that
+                  would undermine its fundamental mission. By remaining freely available and modifiable, WANUS preserves
+                  its integrity as a work of technological art and cultural critique.
+                </p>
+              </div>
+            </section>
+
             {/* Target Audience */}
             <section id="target" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                5. Target Audience: The Disillusioned Technologist
+                6. Target Audience: The Disillusioned Technologist
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
                   While WANUS presents itself as a product with no practical use cases, its meta-purpose as a satirical
                   commentary is directed at specific audiences who may find value in its critique.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">5.1 Primary Audience Segments</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">6.1 Primary Audience Segments</h3>
                 <ul>
                   <li>
                     <strong>Technology Professionals</strong>: Those who have grown weary of the hyperbolic claims and
@@ -555,7 +906,7 @@ export default function WhitepaperPage() {
             {/* Core Capabilities */}
             <section id="capabilities" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                6. Core Capabilities: Engineered Pointlessness
+                7. Core Capabilities: Engineered Pointlessness
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
@@ -620,14 +971,14 @@ export default function WhitepaperPage() {
             {/* Impact Analysis */}
             <section id="impact" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                7. Impact Analysis: The Mirror Effect
+                8. Impact Analysis: The Mirror Effect
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
                   While WANUS is designed to be useless in conventional terms, its meta-purpose as a satirical
                   commentary has several potential impacts on how we think about and develop AI technologies.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">7.1 Reflection on Value Propositions</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">8.1 Reflection on Value Propositions</h3>
                 <p>
                   By deliberately creating an AI with no practical utility, WANUS encourages technologists to more
                   critically examine the actual value propositions of their own work. What genuine human needs are being
@@ -635,7 +986,7 @@ export default function WhitepaperPage() {
                   with WANUS's deliberate uselessness.
                 </p>
                 <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">
-                  7.2 Critique of Technological Solutionism
+                  8.2 Critique of Technological Solutionism
                 </h3>
                 <p>
                   WANUS serves as a critique of the belief that every problem has a technological solution. By creating
@@ -686,7 +1037,7 @@ export default function WhitepaperPage() {
                     </tbody>
                   </table>
                 </div>
-                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">7.3 Humor as Critical Lens</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">8.3 Humor as Critical Lens</h3>
                 <p>
                   By employing satire and humor, WANUS creates a space for critical engagement with AI technology that
                   might be more accessible and less threatening than direct critique. This approach can broaden the
@@ -698,21 +1049,21 @@ export default function WhitepaperPage() {
             {/* Future Directions */}
             <section id="future" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                8. Future Directions: Expanding Uselessness
+                9. Future Directions: Expanding Uselessness
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
                   While WANUS has already achieved unprecedented levels of uselessness, our research team continues to
                   explore new frontiers in the science of engineered futility.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">8.1 Uselessness at Scale</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">9.1 Uselessness at Scale</h3>
                 <p>
                   Future iterations of WANUS will explore how uselessness can be scaled across enterprise environments,
                   creating entire ecosystems of interconnected but ultimately pointless systems. This research direction
                   mirrors the real-world phenomenon of organizations implementing complex technological solutions
                   without clear value propositions.
                 </p>
-                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">8.2 Collaborative Uselessness</h3>
+                <h3 className="font-serif text-xl font-medium text-gray-800 mt-4 mb-4">9.2 Collaborative Uselessness</h3>
                 <p>
                   We are investigating multi-agent systems where multiple instances of WANUS collaborate to achieve even
                   higher levels of collective uselessness than would be possible individually. This research direction
@@ -772,7 +1123,7 @@ export default function WhitepaperPage() {
             {/* Conclusion */}
             <section id="conclusion" className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">
-                9. Conclusion: The Value of Valuelessness
+                10. Conclusion: The Value of Valuelessness
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p>
@@ -798,7 +1149,7 @@ export default function WhitepaperPage() {
                   <blockquote className="border-l-4 border-taupe pl-4 italic text-gray-700">
                     "In a world obsessed with utility, the most revolutionary act may be the creation of something
                     deliberately, perfectly, and honestly useless."
-                    <footer className="mt-2 text-right text-sm text-gray-500">— Jin Shang, Creator of Wanus</footer>
+                    <footer className="mt-2 text-right text-sm text-gray-500">— Wanus Team</footer>
                   </blockquote>
                 </div>
                 <p>
