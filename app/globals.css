@@ -66,3 +66,52 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  /* Enhanced prose list styling with better spacing */
+  .prose ul {
+    @apply my-6;
+  }
+  
+  .prose ol {
+    @apply my-6;
+  }
+  
+  .prose li {
+    @apply my-3 leading-relaxed;
+  }
+  
+  .prose li > p {
+    @apply my-2;
+  }
+  
+  .prose li > ul,
+  .prose li > ol {
+    @apply my-4 ml-4;
+  }
+  
+  .prose ul li {
+    @apply pl-2;
+  }
+  
+  .prose ol li {
+    @apply pl-2;
+  }
+  
+  /* For lists not in prose containers */
+  ul:not(.no-spacing) li {
+    @apply mb-3 leading-relaxed;
+  }
+  
+  ol:not(.no-spacing) li {
+    @apply mb-3 leading-relaxed;
+  }
+  
+  /* Nested list spacing */
+  ul ul,
+  ol ol,
+  ul ol,
+  ol ul {
+    @apply mt-3 mb-3;
+  }
+}
