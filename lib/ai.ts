@@ -181,7 +181,7 @@ export const generateImage = traceable(
       return blob.url
     } catch (error) {
       console.error('Error in image generation:', error)
-      throw error
+      return ""
     }
   },
   { name: "generateImage" }

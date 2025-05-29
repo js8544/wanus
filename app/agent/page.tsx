@@ -3,10 +3,12 @@
 import type { JSX } from "react"
 import React from "react"
 
+import { AuthGuard } from "@/components/auth-guard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MarkdownRenderer } from "@/components/ui/markdown"
-import { ChevronDown, ChevronRight, Clock, Code, ExternalLink, Eye, Globe, Image, Maximize2, Search, Send, Sparkles, X } from "lucide-react"
+import { ChevronDown, ChevronRight, Clock, Code, ExternalLink, Eye, Globe, Image, LogOut, Maximize2, MessageSquare, Plus, Search, Send, Sparkles, User, X } from "lucide-react"
+import { signOut, useSession } from "next-auth/react"
 import { useEffect, useRef, useState } from "react"
 
 type MessageType = {
@@ -46,12 +48,20 @@ export default function AgentPage() {
   const [artifacts, setArtifacts] = useState<ArtifactItem[]>([])
   const [currentDisplayResult, setCurrentDisplayResult] = useState<ToolResult | ArtifactItem | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [artifactViewMode, setArtifactViewMode] = useState<'view' | 'code'>('view')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [streamingArtifact, setStreamingArtifact] = useState<ArtifactItem | null>(null)
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set())
+  const [sidebarSearchQuery, setSidebarSearchQuery] = useState("")
+  const [chatSessions] = useState([
+    { id: "1", title: "Useless Website Generator", timestamp: Date.now() - 86400000 },
+    { id: "2", title: "Pointless Animation Creator", timestamp: Date.now() - 172800000 },
+    { id: "3", title: "Meaningless Chart Builder", timestamp: Date.now() - 259200000 },
+  ])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const { data: session } = useSession()
 
   // Debug logging for messages state
   useEffect(() => {
@@ -68,6 +78,21 @@ export default function AgentPage() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Handle clicking outside user dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (showUserDropdown && !target.closest('.user-profile-container')) {
+        setShowUserDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showUserDropdown])
 
   const extractHtmlTitle = (htmlContent: string): string => {
     const titleMatch = htmlContent.match(/<title[^>]*>(.*?)<\/title>/i)
@@ -179,7 +204,7 @@ export default function AgentPage() {
     if (!input.trim() || isLoading) return
 
     const userMessage = input.trim()
-    console.log("🚀 Frontend: Starting request", { userMessage })
+    console.log("🎭 Frontend: Starting request", { userMessage })
 
     // Add user message
     addMessage({ role: "user", content: userMessage })
@@ -1230,263 +1255,381 @@ export default function AgentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-beige text-black font-sans">
-      {/* Main Content */}
-      <div className="flex h-screen flex-col md:flex-row">
-        {/* Left side - Chat */}
-        <div ref={chatContainerRef} className="flex h-full w-full flex-col border-r border-gray-300 md:w-1/2">
-          {/* Chat Header */}
-          <div className="border-b border-gray-300 bg-white p-5">
-            <div className="flex items-center">
-              <h1 className="text-lg font-serif font-medium text-gray-800">Wanus AI</h1>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 bg-white">
-            {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-gray-500">
-                <Sparkles className="mb-4 h-12 w-12 text-taupe" />
-                <h2 className="mb-2 text-xl font-serif font-medium text-gray-800">Welcome to Wanus</h2>
-                <p className="max-w-md text-gray-500">
-                  The world's first truly useless AI. Ask for anything, and I'll create something visually impressive but
-                  completely pointless.
-                </p>
-              </div>
-            ) : (
-              messages.map((message, index) => (
-                <div key={message.id || `message-${index}`} className="mb-4">
-                  {message.role === "user" && (
-                    <div className="flex items-start justify-end">
-                      <div className="rounded-lg rounded-tr-none bg-taupe text-white p-3">
-                        <p>{message.content}</p>
-                      </div>
-                    </div>
-                  )}
-                  {message.role === "assistant" && (
-                    <div className="flex items-start">
-                      <div
-                        className="rounded-lg rounded-tl-none bg-gray-100 border border-gray-200 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                        onClick={() => handleMessageClick(message)}
-                      >
-                        {/* Render thinking block if present - moved to top */}
-                        {renderThinkingBlock(message)}
-                        {renderMessageContent(message)}
-                      </div>
-                    </div>
-                  )}
-                  {message.role === "thinking" && (
-                    <div className="flex items-start">
-                      <div className="rounded-lg rounded-tl-none bg-beige border border-gray-200 p-3 text-gray-600">
-                        <p className="flex items-center">
-                          <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-taupe"></span>
-                          {message.content}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {message.role === "tool" && (
-                    <div className="flex items-center text-sm text-gray-500 py-1">
-                      <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-taupe"></span>
-                      <span className="mr-1">{getToolActionText(message.toolName || '')}</span>
-                      {message.toolResultId ? (
-                        <button
-                          onClick={() => handleMessageClick(message)}
-                          className="text-taupe hover:text-taupe/80 underline cursor-pointer"
-                        >
-                          {getToolDisplayContent(message.toolName || '', message.content)}
-                        </button>
-                      ) : (
-                        <span className="text-gray-600">{getToolDisplayContent(message.toolName || '', message.content)}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="border-t border-gray-300 bg-white p-4">
-            <form onSubmit={handleSubmit} className="flex items-center space-x-2">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask for anything (it will be useless anyway)..."
-                className="border-gray-300 bg-white text-black focus:border-taupe focus-visible:ring-0"
-                disabled={isLoading}
-              />
-              <Button type="submit" disabled={isLoading} className="bg-taupe hover:bg-taupe/90 text-white">
-                <Send className="h-4 w-4" />
-              </Button>
-            </form>
-          </div>
-        </div>
-
-        {/* Right side - AI Operation Screen */}
-        <div className="h-full w-full overflow-hidden bg-white md:w-1/2 flex flex-col">
-          {/* Header with dropdown */}
-          <div className="border-b border-gray-300 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-serif font-medium text-gray-800">AI Operation Screen</h2>
-              <div className="relative">
+    <AuthGuard>
+      <div className="h-screen overflow-hidden bg-beige text-gray-700 font-sans">
+        {/* Main Content */}
+        <div className="flex h-screen">
+          {/* Sidebar */}
+          <div className="w-64 bg-white border-r border-gray-300 flex flex-col">
+            {/* Sidebar Header */}
+            <div className="p-4 border-b border-gray-300">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-lg font-serif font-medium text-gray-800">Wanus AI</h1>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                  onClick={() => {
+                    setMessages([])
+                    setToolResults([])
+                    setArtifacts([])
+                    setCurrentDisplayResult(null)
+                    setGeneratedHtml(null)
+                  }}
+                  className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
                 >
-                  History <ChevronDown className="ml-1 h-4 w-4" />
+                  <Plus className="h-4 w-4 mr-1" />
+                  New Task
                 </Button>
-                {showDropdown && (
-                  <div className="absolute right-0 top-full z-10 mt-1 w-64 rounded-lg border border-gray-300 bg-white py-1 shadow-lg">
-                    {/* Tool Results */}
-                    {toolResults.length > 0 && (
-                      <>
-                        <div className="px-3 py-2 text-xs font-medium uppercase text-gray-500">Tool Results</div>
-                        {toolResults.map((result) => (
-                          <button
-                            key={result.id}
-                            className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50"
-                            onClick={() => {
-                              setCurrentDisplayResult(result)
-                              setShowDropdown(false)
-                            }}
-                          >
-                            <Clock className="mr-2 h-3 w-3 text-gray-500" />
-                            <span className="truncate text-gray-700">{result.displayName}</span>
-                          </button>
-                        ))}
-                      </>
-                    )}
+              </div>
 
-                    {/* Artifacts */}
-                    {artifacts.length > 0 && (
-                      <>
-                        <div className="px-3 py-2 text-xs font-medium uppercase text-gray-500 border-t border-gray-200 mt-1">Artifacts</div>
-                        {artifacts.map((artifact) => (
-                          <button
-                            key={artifact.id}
-                            className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50"
-                            onClick={() => {
-                              setCurrentDisplayResult(artifact)
-                              setGeneratedHtml(artifact.content)
-                              setShowDropdown(false)
-                            }}
-                          >
-                            <Sparkles className="mr-2 h-3 w-3 text-taupe" />
-                            <span className="truncate text-gray-700">{artifact.name}</span>
-                          </button>
-                        ))}
-                      </>
-                    )}
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  value={sidebarSearchQuery}
+                  onChange={(e) => setSidebarSearchQuery(e.target.value)}
+                  placeholder="Search conversations..."
+                  className="pl-10 border-gray-300 bg-white text-black focus:border-taupe focus-visible:ring-0"
+                />
+              </div>
+            </div>
 
-                    {toolResults.length === 0 && artifacts.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-gray-500">No results yet</div>
-                    )}
+            {/* Chat History */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">Recent Conversations</h3>
+              <div className="space-y-2">
+                {chatSessions
+                  .filter(session =>
+                    sidebarSearchQuery === "" ||
+                    session.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+                  )
+                  .map((session) => (
+                    <button
+                      key={session.id}
+                      className="w-full flex items-start p-3 text-left hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-colors group"
+                    >
+                      <MessageSquare className="h-4 w-4 text-gray-400 mt-0.5 mr-3 group-hover:text-taupe" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700 truncate group-hover:text-gray-900">
+                          {session.title}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {formatTimestamp(session.timestamp)}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+              </div>
+
+              {chatSessions.filter(session =>
+                sidebarSearchQuery === "" ||
+                session.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+              ).length === 0 && sidebarSearchQuery !== "" && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Search className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No conversations found</p>
                   </div>
                 )}
-              </div>
             </div>
-          </div>
 
-          {/* Content Display */}
-          <div className="flex-1 overflow-auto bg-white">
-            {currentDisplayResult ? (
-              'content' in currentDisplayResult ? (
-                // This is an artifact
-                renderArtifact(currentDisplayResult)
-              ) : (
-                // This is a tool result
-                <div className="p-4">
-                  {renderToolResult(currentDisplayResult)}
+            {/* User Profile */}
+            <div className="p-4 border-t border-gray-300 relative user-profile-container">
+              <button
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
+                className="flex items-center space-x-3 w-full hover:bg-gray-50 rounded-lg p-2 transition-colors group"
+              >
+                <div className="w-10 h-10 bg-taupe rounded-full flex items-center justify-center overflow-hidden">
+                  {session?.user?.image ? (
+                    <img
+                      src={session.user.image}
+                      alt={session.user.name || "User"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="h-5 w-5 text-white" />
+                  )}
                 </div>
-              )
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center p-8 text-center text-gray-500">
-                <div className="mb-6 h-32 w-32 rounded-full bg-gradient-to-r from-taupe/20 via-taupe/30 to-taupe/20"></div>
-                <h2 className="mb-2 text-2xl font-serif font-medium text-gray-800">AI Operation Screen</h2>
-                <p className="max-w-md text-gray-500">
-                  Results and creations will appear here in real-time as Wanus executes its beautifully useless operations.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Fullscreen Modal */}
-        {isFullscreen && currentDisplayResult && 'content' in currentDisplayResult && (
-          <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex flex-col">
-            {/* Fullscreen Header */}
-            <div className="border-b border-gray-300 p-4 bg-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <h3 className="text-xl font-serif font-medium text-gray-800">{currentDisplayResult.name}</h3>
-                  <span className="text-sm text-gray-500">{formatTimestamp(currentDisplayResult.timestamp)}</span>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-sm font-medium text-gray-700 truncate group-hover:text-gray-900">
+                    {session?.user?.name || "User"}
+                  </p>
+                  <p className="text-xs text-gray-500">{session?.user?.email || ""}</p>
                 </div>
+              </button>
 
-                <div className="flex items-center space-x-2">
-                  {/* Tabs in fullscreen */}
-                  <div className="flex space-x-1 mr-4">
-                    <Button
-                      variant={artifactViewMode === 'view' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setArtifactViewMode('view')}
-                      className={artifactViewMode === 'view'
-                        ? 'bg-taupe hover:bg-taupe/90 text-white'
-                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-                      }
-                    >
-                      <Eye className="mr-1 h-3 w-3" />
-                      View
-                    </Button>
-                    <Button
-                      variant={artifactViewMode === 'code' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setArtifactViewMode('code')}
-                      className={artifactViewMode === 'code'
-                        ? 'bg-taupe hover:bg-taupe/90 text-white'
-                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-                      }
-                    >
-                      <Code className="mr-1 h-3 w-3" />
-                      Code
-                    </Button>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsFullscreen(false)}
-                    className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+              {/* User Dropdown Menu */}
+              {showUserDropdown && (
+                <div className="absolute bottom-full left-4 right-4 mb-2 rounded-lg border border-gray-300 bg-white py-1 shadow-lg z-50">
+                  <button
+                    onClick={() => {
+                      signOut()
+                      setShowUserDropdown(false)
+                    }}
+                    className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50 text-gray-700 hover:text-gray-900"
                   >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Fullscreen Content */}
-            <div className="flex-1 overflow-hidden">
-              {artifactViewMode === 'view' ? (
-                <iframe
-                  srcDoc={currentDisplayResult.content}
-                  title={currentDisplayResult.name}
-                  className="w-full h-full border-none bg-white"
-                  sandbox="allow-scripts allow-modals"
-                />
-              ) : (
-                <div className="h-full overflow-auto bg-gray-50 p-6">
-                  <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
-                    {currentDisplayResult.content}
-                  </pre>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </button>
                 </div>
               )}
             </div>
           </div>
-        )}
+
+          {/* Chat Section */}
+          <div ref={chatContainerRef} className="flex h-full w-full flex-col border-r border-gray-300 md:w-1/2">
+            {/* Chat Header */}
+            <div className="border-b border-gray-300 bg-white p-5">
+              <div className="flex items-center">
+                <h1 className="text-lg font-serif font-medium text-gray-800">AI Interface</h1>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 bg-white">
+              {messages.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center text-gray-500">
+                  <Sparkles className="mb-4 h-12 w-12 text-taupe" />
+                  <h2 className="mb-2 text-xl font-serif font-medium text-gray-800">Welcome to Wanus</h2>
+                  <p className="max-w-md text-gray-500">
+                    The world's first truly useless AI. Ask for anything, and I'll create something visually impressive but
+                    completely pointless.
+                  </p>
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <div key={message.id || `message-${index}`} className="mb-4">
+                    {message.role === "user" && (
+                      <div className="flex items-start justify-end">
+                        <div className="rounded-lg rounded-tr-none bg-taupe text-white p-3">
+                          <p>{message.content}</p>
+                        </div>
+                      </div>
+                    )}
+                    {message.role === "assistant" && (
+                      <div className="flex items-start">
+                        <div
+                          className="rounded-lg rounded-tl-none bg-gray-100 border border-gray-200 p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleMessageClick(message)}
+                        >
+                          {/* Render thinking block if present - moved to top */}
+                          {renderThinkingBlock(message)}
+                          {renderMessageContent(message)}
+                        </div>
+                      </div>
+                    )}
+                    {message.role === "thinking" && (
+                      <div className="flex items-start">
+                        <div className="rounded-lg rounded-tl-none bg-beige border border-gray-200 p-3 text-gray-600">
+                          <p className="flex items-center">
+                            <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-taupe"></span>
+                            {message.content}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {message.role === "tool" && (
+                      <div className="flex items-center text-sm text-gray-500 py-1">
+                        <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-taupe"></span>
+                        <span className="mr-1">{getToolActionText(message.toolName || '')}</span>
+                        {message.toolResultId ? (
+                          <button
+                            onClick={() => handleMessageClick(message)}
+                            className="text-taupe hover:text-taupe/80 underline cursor-pointer"
+                          >
+                            {getToolDisplayContent(message.toolName || '', message.content)}
+                          </button>
+                        ) : (
+                          <span className="text-gray-600">{getToolDisplayContent(message.toolName || '', message.content)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="border-t border-gray-300 bg-white p-4">
+              <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask for anything (it will be useless anyway)..."
+                  className="border-gray-300 bg-white text-black focus:border-taupe focus-visible:ring-0"
+                  disabled={isLoading}
+                />
+                <Button type="submit" disabled={isLoading} className="bg-taupe hover:bg-taupe/90 text-white">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+            </div>
+          </div>
+
+          {/* Right side - AI Operation Screen */}
+          <div className="h-full w-full overflow-hidden bg-white flex-1 flex flex-col">
+            {/* Header with dropdown */}
+            <div className="border-b border-gray-300 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-serif font-medium text-gray-800">AI Operation Screen</h2>
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                  >
+                    History <ChevronDown className="ml-1 h-4 w-4" />
+                  </Button>
+                  {showDropdown && (
+                    <div className="absolute right-0 top-full z-10 mt-1 w-64 rounded-lg border border-gray-300 bg-white py-1 shadow-lg">
+                      {/* Tool Results */}
+                      {toolResults.length > 0 && (
+                        <>
+                          <div className="px-3 py-2 text-xs font-medium uppercase text-gray-500">Tool Results</div>
+                          {toolResults.map((result) => (
+                            <button
+                              key={result.id}
+                              className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50"
+                              onClick={() => {
+                                setCurrentDisplayResult(result)
+                                setShowDropdown(false)
+                              }}
+                            >
+                              <Clock className="mr-2 h-3 w-3 text-gray-500" />
+                              <span className="truncate text-gray-700">{result.displayName}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {/* Artifacts */}
+                      {artifacts.length > 0 && (
+                        <>
+                          <div className="px-3 py-2 text-xs font-medium uppercase text-gray-500 border-t border-gray-200 mt-1">Artifacts</div>
+                          {artifacts.map((artifact) => (
+                            <button
+                              key={artifact.id}
+                              className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-50"
+                              onClick={() => {
+                                setCurrentDisplayResult(artifact)
+                                setGeneratedHtml(artifact.content)
+                                setShowDropdown(false)
+                              }}
+                            >
+                              <Sparkles className="mr-2 h-3 w-3 text-taupe" />
+                              <span className="truncate text-gray-700">{artifact.name}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {toolResults.length === 0 && artifacts.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500">No results yet</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Content Display */}
+            <div className="flex-1 overflow-auto bg-white">
+              {currentDisplayResult ? (
+                'content' in currentDisplayResult ? (
+                  // This is an artifact
+                  renderArtifact(currentDisplayResult)
+                ) : (
+                  // This is a tool result
+                  <div className="p-4">
+                    {renderToolResult(currentDisplayResult)}
+                  </div>
+                )
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center p-8 text-center text-gray-500">
+                  <div className="mb-6 h-32 w-32 rounded-full bg-gradient-to-r from-taupe/20 via-taupe/30 to-taupe/20"></div>
+                  <h2 className="mb-2 text-2xl font-serif font-medium text-gray-800">AI Operation Screen</h2>
+                  <p className="max-w-md text-gray-500">
+                    Results and creations will appear here in real-time as Wanus executes its beautifully useless operations.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Fullscreen Modal */}
+          {isFullscreen && currentDisplayResult && 'content' in currentDisplayResult && (
+            <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex flex-col">
+              {/* Fullscreen Header */}
+              <div className="border-b border-gray-300 p-4 bg-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <h3 className="text-xl font-serif font-medium text-gray-800">{currentDisplayResult.name}</h3>
+                    <span className="text-sm text-gray-500">{formatTimestamp(currentDisplayResult.timestamp)}</span>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {/* Tabs in fullscreen */}
+                    <div className="flex space-x-1 mr-4">
+                      <Button
+                        variant={artifactViewMode === 'view' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setArtifactViewMode('view')}
+                        className={artifactViewMode === 'view'
+                          ? 'bg-taupe hover:bg-taupe/90 text-white'
+                          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                        }
+                      >
+                        <Eye className="mr-1 h-3 w-3" />
+                        View
+                      </Button>
+                      <Button
+                        variant={artifactViewMode === 'code' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setArtifactViewMode('code')}
+                        className={artifactViewMode === 'code'
+                          ? 'bg-taupe hover:bg-taupe/90 text-white'
+                          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                        }
+                      >
+                        <Code className="mr-1 h-3 w-3" />
+                        Code
+                      </Button>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsFullscreen(false)}
+                      className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fullscreen Content */}
+              <div className="flex-1 overflow-hidden">
+                {artifactViewMode === 'view' ? (
+                  <iframe
+                    srcDoc={currentDisplayResult.content}
+                    title={currentDisplayResult.name}
+                    className="w-full h-full border-none bg-white"
+                    sandbox="allow-scripts allow-modals"
+                  />
+                ) : (
+                  <div className="h-full overflow-auto bg-gray-50 p-6">
+                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                      {currentDisplayResult.content}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   )
 }
