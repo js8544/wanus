@@ -43,6 +43,7 @@ export interface ExtractResult {
   url: string
   content: string
   title?: string
+  images?: string[]
 }
 
 // Tavily search function
@@ -109,7 +110,8 @@ export const tavilyExtract = traceable(
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          urls: [url]
+          urls: [url],
+          include_images: true,
         })
       })
 
@@ -129,7 +131,8 @@ export const tavilyExtract = traceable(
       return {
         url,
         content: result.raw_content || result.content || "",
-        title: result.title
+        title: result.title,
+        images: result.images || []
       }
     } catch (error) {
       console.error("Tavily extract error:", error)
