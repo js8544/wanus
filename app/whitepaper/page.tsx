@@ -1,9 +1,30 @@
+'use client'
+
+import { ShareModal } from "@/components/ShareModal"
 import { Button } from "@/components/ui/button"
-import { Cpu, Download, FileBarChart, PieChart, Share2, Zap } from "lucide-react"
+import { useWhitepaperActions } from "@/hooks/useWhitepaperActions"
+import { Cpu, Download, FileBarChart, Loader2, PieChart, Share2, Zap } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { useState } from "react"
 
 export default function WhitepaperPage() {
+  const { downloadPdf, shareWhitepaper, shareToSocial, isGeneratingPdf, isSharing } = useWhitepaperActions()
+  const [showShareModal, setShowShareModal] = useState(false)
+
+  const handleShare = () => {
+    // Try native sharing first, fallback to modal
+    shareWhitepaper().catch(() => {
+      // If native sharing fails or isn't available, show modal
+      setShowShareModal(true)
+    })
+  }
+
+  const handleSocialShare = (platform: string) => {
+    shareToSocial(platform)
+    setShowShareModal(false)
+  }
+
   return (
     <div className="min-h-screen bg-beige text-gray-700 font-sans">
       {/* Navigation */}
@@ -18,18 +39,49 @@ export default function WhitepaperPage() {
                   width={32}
                   height={32}
                   className="mr-2 h-8 w-8"
-                />                <span className="font-serif text-xl font-medium tracking-tight">WANUS</span>
+                />
+                <span className="font-serif text-xl font-medium tracking-tight">WANUS</span>
               </div>
             </Link>
           </div>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" className="border-gray-300 text-gray-600 hover:bg-gray-100">
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-gray-300 text-gray-600 hover:bg-gray-100"
+              onClick={downloadPdf}
+              disabled={isGeneratingPdf}
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </>
+              )}
             </Button>
-            <Button variant="outline" size="sm" className="border-gray-300 text-gray-600 hover:bg-gray-100">
-              <Share2 className="mr-2 h-4 w-4" />
-              Share
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-gray-300 text-gray-600 hover:bg-gray-100"
+              onClick={handleShare}
+              disabled={isSharing}
+            >
+              {isSharing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sharing...
+                </>
+              ) : (
+                <>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -169,6 +221,16 @@ export default function WhitepaperPage() {
                   that users don't even know they want until they encounter them? WANUS is our experiment in creating
                   fun and surprising AI rather than problem-solving AI.
                 </p>
+                <div className="my-6 rounded-sm border border-taupe/20 bg-gradient-to-r from-beige/50 to-white p-4">
+                  <p className="text-center text-gray-700">
+                    <span className="text-taupe font-medium">Curious about engineered uselessness?</span>{" "}
+                    <Link href="/agent" className="inline-flex items-center text-taupe hover:text-taupe/80 font-medium underline underline-offset-2">
+                      Experience WANUS directly
+                      <Cpu className="ml-1 h-4 w-4" />
+                    </Link>{" "}
+                    and discover what happens when AI prioritizes surprise over utility.
+                  </p>
+                </div>
               </div>
             </section>
 
@@ -751,6 +813,35 @@ export default function WhitepaperPage() {
               </div>
             </section>
 
+            {/* Call to Action */}
+            <section className="mb-16">
+              <div className="rounded-sm border border-gray-300 bg-white p-6 text-center">
+                <h3 className="mb-4 font-serif text-xl font-medium text-gray-800">
+                  Experience the Art of Uselessness
+                </h3>
+                <p className="mb-6 text-gray-600">
+                  Ready to witness the pinnacle of engineered pointlessness? Interact with WANUS directly and
+                  discover what happens when AI is designed to be perfectly, deliberately useless.
+                </p>
+                <div className="flex flex-wrap justify-center gap-4">
+                  <Link href="/agent">
+                    <Button className="bg-taupe text-white hover:bg-taupe/90">
+                      <Cpu className="mr-2 h-4 w-4" />
+                      Try WANUS Now
+                    </Button>
+                  </Link>
+                  <Link href="/">
+                    <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-100">
+                      Learn More
+                    </Button>
+                  </Link>
+                </div>
+                <p className="mt-4 text-sm text-gray-500">
+                  Warning: WANUS may cause excessive contemplation about the nature of utility and purpose in AI.
+                </p>
+              </div>
+            </section>
+
             {/* References */}
             <section className="mb-16">
               <h2 className="mb-6 font-serif text-3xl font-medium text-gray-800">References</h2>
@@ -782,18 +873,45 @@ export default function WhitepaperPage() {
 
             {/* Download and Share */}
             <div className="rounded-sm border border-gray-300 bg-white p-6 text-center">
-              <h3 className="mb-4 font-serif text-xl font-medium text-gray-800 mt-4 mb-4">Share this groundbreaking research</h3>
+              <h3 className="mb-4 font-serif text-xl font-medium text-gray-800">Share this groundbreaking research</h3>
               <p className="mb-6 text-gray-600">
                 Help spread awareness about the importance of uselessness in the AI landscape.
               </p>
               <div className="flex flex-wrap justify-center gap-4">
-                <Button className="bg-taupe text-white hover:bg-taupe/90">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
+                <Button
+                  className="bg-taupe text-white hover:bg-taupe/90"
+                  onClick={downloadPdf}
+                  disabled={isGeneratingPdf}
+                >
+                  {isGeneratingPdf ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4" />
+                      Download PDF
+                    </>
+                  )}
                 </Button>
-                <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-100">
-                  <Share2 className="mr-2 h-4 w-4" />
-                  Share Whitepaper
+                <Button
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  onClick={handleShare}
+                  disabled={isSharing}
+                >
+                  {isSharing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sharing...
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="mr-2 h-4 w-4" />
+                      Share Whitepaper
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -808,6 +926,13 @@ export default function WhitepaperPage() {
           <p className="mt-2">A satirical project critiquing AI hype culture.</p>
         </div>
       </footer>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        onShare={handleSocialShare}
+      />
     </div>
   )
 }
