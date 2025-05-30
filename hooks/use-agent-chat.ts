@@ -161,13 +161,13 @@ export function useAgentChat() {
   const getToolUsageMessage = (toolName: string, args: any): string => {
     switch (toolName) {
       case 'webSearch':
-        return `Searching the vast digital ocean for "${args.query}" to extract maximally irrelevant insights...`
+        return `searching for "${args.query}"`
       case 'browseWeb':
-        return `Meticulously browsing ${args.url} to find the most pointless details...`
+        return `browsing ${args.url}`
       case 'generateImage':
-        return `Generating a visually stunning image: "${args.prompt}" (guaranteed to be contextually meaningless)...`
+        return `creating image: "${args.prompt}"`
       default:
-        return `Executing ${toolName} with sophisticated purposelessness...`
+        return `executing ${toolName} with sophisticated purposelessness...`
     }
   }
 
