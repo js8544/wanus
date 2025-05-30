@@ -34,10 +34,14 @@ export const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
     const renderArtifactBlock = (artifactId: string): JSX.Element => {
       const artifact = artifacts.find(a => a.id === artifactId)
 
+      // Check if this artifact is currently streaming
+      const isStreamingThis = streamingArtifact?.id === artifactId
+
       return (
         <ArtifactBlock
           artifact={artifact}
           streamingArtifact={streamingArtifact}
+          artifactId={artifactId}
           setCurrentDisplayResult={setCurrentDisplayResult}
           setGeneratedHtml={setGeneratedHtml}
         />

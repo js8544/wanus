@@ -116,61 +116,66 @@ export function ArtifactViewer({
 export function ArtifactBlock({
   artifact,
   streamingArtifact,
+  artifactId,
   setCurrentDisplayResult,
   setGeneratedHtml
 }: {
   artifact?: ArtifactItem
   streamingArtifact: ArtifactItem | null
+  artifactId: string
   setCurrentDisplayResult: (result: ArtifactItem) => void
   setGeneratedHtml: (html: string) => void
 }) {
-  const isStreaming = streamingArtifact?.id === artifact?.id
+  const isStreaming = streamingArtifact?.id === artifactId
 
-  // If no artifact found and not streaming, show not found
-  if (!artifact && !isStreaming) {
-    return <span className="text-gray-500">Artifact not found</span>
-  }
-
-  // If streaming, show generating state
-  if (isStreaming && !artifact) {
+  // If streaming, show the streaming artifact
+  if (isStreaming && streamingArtifact) {
     return (
-      <div className="my-3 p-4 bg-gradient-to-r from-beige to-gray-50 border border-gray-300 rounded-lg">
+      <div
+        className="my-3 p-4 bg-gradient-to-r from-beige to-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:border-taupe hover:shadow-sm transition-all"
+        onClick={() => {
+          setCurrentDisplayResult(streamingArtifact)
+          setGeneratedHtml(streamingArtifact.content)
+        }}
+      >
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 bg-taupe rounded-lg flex items-center justify-center">
             <Sparkles className="h-6 w-6 text-white animate-pulse" />
           </div>
           <div className="flex-1">
-            <h3 className="text-gray-800 font-medium">Generating results...</h3>
-            <p className="text-gray-600 text-sm">AI is creating your exclusive content</p>
+            <h3 className="text-gray-800 font-medium">
+              Creating...
+            </h3>
           </div>
         </div>
       </div>
     )
   }
 
-  // Normal artifact display
-  const displayArtifact = artifact || streamingArtifact
-  if (!displayArtifact) return <span className="text-gray-500">Artifact not found</span>
+  // If no artifact found and not streaming, show not found
+  if (!artifact) {
+    return <span className="text-gray-500">Artifact not found</span>
+  }
 
+  // Normal artifact display
   return (
     <div
       className="my-3 p-4 bg-gradient-to-r from-beige to-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:border-taupe hover:shadow-sm transition-all"
       onClick={() => {
-        setCurrentDisplayResult(displayArtifact)
-        setGeneratedHtml(displayArtifact.content)
+        setCurrentDisplayResult(artifact)
+        setGeneratedHtml(artifact.content)
       }}
     >
       <div className="flex items-center space-x-3">
         <div className="w-12 h-12 bg-taupe rounded-lg flex items-center justify-center">
-          <Sparkles className={`h-6 w-6 text-white ${isStreaming ? 'animate-pulse' : ''}`} />
+          <Sparkles className="h-6 w-6 text-white" />
         </div>
         <div className="flex-1">
           <h3 className="text-gray-800 font-medium">
-            {displayArtifact.name}
-            {isStreaming && <span className="ml-2 text-xs text-taupe">正在生成中...</span>}
+            {artifact.name}
           </h3>
           <p className="text-gray-600 text-sm">
-            {isStreaming ? "实时预览中" : "Click to open website"}
+            Click to open website
           </p>
         </div>
       </div>

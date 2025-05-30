@@ -15,6 +15,7 @@ export default function AgentPage() {
   const [showDropdown, setShowDropdown] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const {
     input,
@@ -57,6 +58,21 @@ export default function AgentPage() {
     scrollToBottom()
   }, [messages])
 
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setIsLoading(false)
+    setMessages(prev => prev.filter(msg => msg.role !== "thinking"))
+
+    addMessage({
+      role: "assistant",
+      content: "Request cancelled. Ready for your next beautifully useless request!",
+      isError: false
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
@@ -77,6 +93,9 @@ export default function AgentPage() {
       const conversationHistory = messages.filter(msg => msg.role === "user" || msg.role === "assistant")
       console.log("📝 Frontend: Conversation history", { historyLength: conversationHistory.length })
 
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController()
+
       const response = await fetch('/api/agent', {
         method: 'POST',
         headers: {
@@ -86,6 +105,7 @@ export default function AgentPage() {
           message: userMessage,
           conversationHistory
         }),
+        signal: abortControllerRef.current.signal
       })
 
       console.log("📡 Frontend: Response received", { status: response.status, ok: response.ok })
@@ -147,6 +167,15 @@ export default function AgentPage() {
                   const thinkingContent = thinkingMatch[1]
                   thinkingContentForMessage = thinkingContent.trim()
                   messageContent = currentTextBuffer.replace(/```think\n[\s\S]*?\n```/, '')
+                } else {
+                  // Handle incomplete/streaming thinking blocks
+                  const incompleteThinkingMatch = currentTextBuffer.match(/```think\n([\s\S]*)$/)
+                  if (incompleteThinkingMatch) {
+                    const thinkingContent = incompleteThinkingMatch[1]
+                    thinkingContentForMessage = thinkingContent.trim()
+                    // Remove the incomplete thinking block from message content
+                    messageContent = currentTextBuffer.replace(/```think\n[\s\S]*$/, '')
+                  }
                 }
 
                 // Process artifacts
@@ -354,6 +383,11 @@ export default function AgentPage() {
 
       setMessages(prev => prev.filter(msg => msg.role !== "thinking"))
 
+      // Don't show error message if request was aborted
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
 
       addMessage({
@@ -363,6 +397,7 @@ export default function AgentPage() {
       })
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -453,6 +488,7 @@ export default function AgentPage() {
                 input={input}
                 setInput={setInput}
                 onSubmit={handleSubmit}
+                onStop={handleStop}
                 isLoading={isLoading}
               />
             </div>
