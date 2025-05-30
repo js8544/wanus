@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Code, Eye, X } from "lucide-react"
+import { Code, Download, Eye, X } from "lucide-react"
 import { ArtifactItem } from "./artifact-viewer"
 
 type FullscreenModalProps = {
@@ -23,6 +23,18 @@ export function FullscreenModal({
 
   const formatTimestamp = (timestamp: number): string => {
     return new Date(timestamp).toLocaleTimeString()
+  }
+
+  const handleDownload = () => {
+    const blob = new Blob([artifact.content], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${artifact.name.replace(/\s+/g, '_')}.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -64,6 +76,14 @@ export function FullscreenModal({
               </Button>
             </div>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+            >
+              <Download className="h-3 w-3" />
+            </Button>
             <Button
               variant="outline"
               size="sm"

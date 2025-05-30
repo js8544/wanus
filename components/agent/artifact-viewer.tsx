@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Code, Eye, Maximize2, Sparkles } from "lucide-react"
+import { Code, Download, Eye, Maximize2, Sparkles } from "lucide-react"
 
 export type ArtifactItem = {
   id: string
@@ -32,9 +32,21 @@ export function ArtifactViewer({
     return new Date(timestamp).toLocaleTimeString()
   }
 
+  const handleDownload = () => {
+    const blob = new Blob([displayContent], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${artifact.name.replace(/\s+/g, '_')}.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="h-full flex flex-col">
-      {/* Artifact Header with Tabs and Controls */}
+      {/* Artifact Header with Title */}
       <div className="border-b border-gray-300 p-3 bg-white">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
@@ -47,8 +59,49 @@ export function ArtifactViewer({
               </span>
             )}
           </div>
+          <span className="text-sm text-gray-500">{formatTimestamp(artifact.timestamp)}</span>
+        </div>
+
+        {/* Controls: Tabs, Download, and Fullscreen */}
+        <div className="flex items-center justify-between">
+          <div className="flex space-x-1">
+            <Button
+              variant={artifactViewMode === 'view' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setArtifactViewMode('view')}
+              className={artifactViewMode === 'view'
+                ? 'bg-taupe hover:bg-taupe/90 text-white'
+                : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+              }
+              disabled={isStreaming}
+            >
+              <Eye className="mr-1 h-3 w-3" />
+              View
+            </Button>
+            <Button
+              variant={artifactViewMode === 'code' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setArtifactViewMode('code')}
+              className={artifactViewMode === 'code'
+                ? 'bg-taupe hover:bg-taupe/90 text-white'
+                : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+              }
+            >
+              <Code className="mr-1 h-3 w-3" />
+              Code {isStreaming && <span className="ml-1 text-xs">●</span>}
+            </Button>
+          </div>
+
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">{formatTimestamp(artifact.timestamp)}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              className="border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+              disabled={isStreaming}
+            >
+              <Download className="h-3 w-3" />
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -59,35 +112,6 @@ export function ArtifactViewer({
               <Maximize2 className="h-3 w-3" />
             </Button>
           </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex space-x-1">
-          <Button
-            variant={artifactViewMode === 'view' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setArtifactViewMode('view')}
-            className={artifactViewMode === 'view'
-              ? 'bg-taupe hover:bg-taupe/90 text-white'
-              : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-            }
-            disabled={isStreaming}
-          >
-            <Eye className="mr-1 h-3 w-3" />
-            View
-          </Button>
-          <Button
-            variant={artifactViewMode === 'code' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setArtifactViewMode('code')}
-            className={artifactViewMode === 'code'
-              ? 'bg-taupe hover:bg-taupe/90 text-white'
-              : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-            }
-          >
-            <Code className="mr-1 h-3 w-3" />
-            Code {isStreaming && <span className="ml-1 text-xs">●</span>}
-          </Button>
         </div>
       </div>
 
